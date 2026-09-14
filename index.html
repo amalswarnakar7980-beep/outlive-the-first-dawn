@@ -1,1 +1,709 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Outlive 5D: The Living Dimension</title>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #020305;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #webgl-container {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    #sensoryFilter {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      box-shadow: inset 0 0 100px rgba(0,0,0,0.85);
+      transition: background 0.3s, filter 0.3s;
+    }
+
+    .hud-layer {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .hud-glass {
+      background: rgba(10, 15, 22, 0.85);
+      border: 1px solid rgba(0, 255, 170, 0.25);
+      backdrop-filter: blur(8px);
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 11px;
+      min-width: 135px;
+    }
+    .meter {
+      height: 5px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      margin: 2px 0 5px 0;
+      overflow: hidden;
+    }
+    .meter-fill {
+      height: 100%;
+      transition: width 0.2s ease;
+    }
+    .fill-hp { background: #e74c3c; }
+    .fill-pain { background: #9b59b6; }
+    .fill-fear { background: #e67e22; }
+
+    .inv-glass {
+      text-align: right;
+      font-weight: 600;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    #toastMsg {
+      position: absolute;
+      top: 75px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(5, 10, 15, 0.95);
+      border: 1px solid #00ffaa;
+      color: #00ffaa;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s;
+      z-index: 20;
+    }
+
+    #craftingModal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      max-width: 360px;
+      background: rgba(10, 15, 22, 0.95);
+      border: 1px solid #00ffaa;
+      border-radius: 12px;
+      padding: 16px;
+      color: #fff;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 50;
+      box-shadow: 0 0 25px rgba(0, 255, 170, 0.3);
+    }
+    .craft-item {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .craft-btn {
+      background: #00ffaa;
+      color: #000;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .controls-layer {
+      position: absolute;
+      bottom: 25px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #joyZone {
+      width: 125px;
+      height: 125px;
+      background: radial-gradient(circle, rgba(0, 255, 170, 0.06) 0%, rgba(0,0,0,0.5) 100%);
+      border: 1.5px solid rgba(0, 255, 170, 0.3);
+      border-radius: 50%;
+      position: relative;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    #joyKnob {
+      width: 48px;
+      height: 48px;
+      background: radial-gradient(circle, #00ffaa, #008855);
+      border: 2px solid rgba(255,255,255,0.8);
+      border-radius: 50%;
+      position: absolute;
+      top: 38px;
+      left: 38px;
+      box-shadow: 0 0 15px rgba(0, 255, 170, 0.5);
+      pointer-events: none;
+    }
+    .action-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .tactical-btn {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      transition: transform 0.08s;
+    }
+    .tactical-btn:active {
+      transform: scale(0.9);
+    }
+    .btn-strike {
+      background: radial-gradient(circle, #e74c3c, #801d14);
+      box-shadow: 0 0 16px rgba(231, 76, 60, 0.5);
+    }
+    .btn-action {
+      background: radial-gradient(circle, #3498db, #1b4f72);
+      box-shadow: 0 0 16px rgba(52, 152, 219, 0.5);
+    }
+    .btn-build {
+      background: radial-gradient(circle, #f39c12, #965b07);
+      box-shadow: 0 0 16px rgba(243, 156, 18, 0.5);
+    }
+  </style>
+</head>
+<body onclick="AudioEngine.init()">
+
+<div id="webgl-container"></div>
+<div id="sensoryFilter"></div>
+
+<div class="hud-layer">
+  <div class="hud-glass">
+    <div>স্বাস্থ্য (HP): <span id="hpTxt">100</span>%</div>
+    <div class="meter"><div id="hpBar" class="meter-fill fill-hp" style="width: 100%;"></div></div>
+    <div>ব্যথা (PAIN): <span id="painTxt">0</span>%</div>
+    <div class="meter"><div id="painBar" class="meter-fill fill-pain" style="width: 0%;"></div></div>
+    <div>ভীতি (FEAR): <span id="fearTxt">15</span>%</div>
+    <div class="meter"><div id="fearBar" class="meter-fill fill-fear" style="width: 15%;"></div></div>
+  </div>
+
+  <div class="hud-glass inv-glass" onclick="toggleCraftingModal()">
+    <div id="cycleLabel" style="color: #00ffaa; margin-bottom: 2px;">☀️ শান্ত সকাল</div>
+    <div>🎒 ব্যাকপ্যাক ও ক্রাফট ⚙️</div>
+    <div style="font-size: 10px; color: #8b949e;">🪵 <span id="woodCount">12</span> | 🪨 <span id="stoneCount">8</span> | 🧵 <span id="fabricCount">4</span></div>
+  </div>
+</div>
+
+<div id="toastMsg">বিজ্ঞপ্তি</div>
+
+<div id="craftingModal">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3>🛠️ সারভাইভাল ক্রাফটিং</h3>
+    <span onclick="toggleCraftingModal()" style="cursor: pointer; font-size: 20px;">✖</span>
+  </div>
+  
+  <div class="craft-item">
+    <div>
+      <strong>🔥 ক্যাম্পফায়ার</strong><br>
+      <small style="color: #bbb;">খরচ: ৪ কাঠ + ২ পাথর</small>
+    </div>
+    <button class="craft-btn" onclick="executeCraft('campfire')">বানাও</button>
+  </div>
+
+  <div class="craft-item">
+    <div>
+      <strong>⛺ সারভাইভাল তাঁবু</strong><br>
+      <small style="color: #bbb;">খরচ: ৬ কাঠ + ৪ কাপড়</small>
+    </div>
+    <button class="craft-btn" onclick="executeCraft('tent')">বানাও</button>
+  </div>
+</div>
+
+<div class="controls-layer">
+  <div id="joyZone">
+    <div id="joyKnob"></div>
+  </div>
+  <div class="action-group">
+    <button class="tactical-btn btn-strike" onclick="triggerHapticFeedback('heavy'); handleStrike();">⚔️</button>
+    <button class="tactical-btn btn-build" onclick="triggerHapticFeedback('medium'); handleDeploy();">⛺</button>
+    <button class="tactical-btn btn-action" onclick="triggerHapticFeedback('light'); handleInteraction();">🖐️</button>
+  </div>
+</div>
+
+<script>
+// --- ১. অডিও ইঞ্জিন ---
+const AudioEngine = {
+  ctx: null,
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+  },
+  playHitSound() {
+    this.init();
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.15);
+  },
+  playHeartbeat() {
+    this.init();
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(55, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(35, this.ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.12);
+  }
+};
+
+// --- ২. ক্রাফটিং ও ইনভেন্টরি স্টেট ---
+const InventoryState = {
+  slots: { wood: 12, stone: 8, fabric: 4 },
+  deployables: { campfire: 1, tent: 1 }
+};
+const ActiveDeployables = [];
+
+function craftItem(type) {
+  if (type === "campfire") {
+    if (InventoryState.slots.wood >= 4 && InventoryState.slots.stone >= 2) {
+      InventoryState.slots.wood -= 4;
+      InventoryState.slots.stone -= 2;
+      InventoryState.deployables.campfire++;
+      return { success: true, msg: "🔥 ক্যাম্পফায়ার তৈরি হয়েছে!" };
+    }
+  } else if (type === "tent") {
+    if (InventoryState.slots.wood >= 6 && InventoryState.slots.fabric >= 4) {
+      InventoryState.slots.wood -= 6;
+      InventoryState.slots.fabric -= 4;
+      InventoryState.deployables.tent++;
+      return { success: true, msg: "⛺ সারভাইভাল তাঁবু তৈরি হয়েছে!" };
+    }
+  }
+  return { success: false, msg: "অপর্যাপ্ত কাঁচামাল!" };
+}
+
+function deployStructure(type, x, z) {
+  if (InventoryState.deployables[type] > 0) {
+    InventoryState.deployables[type]--;
+    ActiveDeployables.push({ type, x, z });
+    return { success: true };
+  }
+  return { success: false };
+}
+
+// --- ৩. থ্রি-ডি ওয়ার্ল্ড ইঞ্জিন ---
+let scene, camera, renderer, sunLight, hemiLight;
+let isNightTime = false;
+let timeProgress = 0;
+const worldEntities = { trees: [], structures: [] };
+
+function initWorldEngine(containerId) {
+  const container = document.getElementById(containerId);
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a101d);
+  scene.fog = new THREE.FogExp2(0x0a101d, 0.018);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  container.appendChild(renderer.domElement);
+
+  hemiLight = new THREE.HemisphereLight(0xffffff, 0x111122, 0.7);
+  scene.add(hemiLight);
+
+  sunLight = new THREE.DirectionalLight(0xfff4e5, 1.2);
+  sunLight.position.set(40, 60, 20);
+  sunLight.castShadow = true;
+  scene.add(sunLight);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(240, 240),
+    new THREE.MeshStandardMaterial({ color: 0x1c2826, roughness: 0.9 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  for (let i = 0; i < 40; i++) {
+    const x = (Math.random() - 0.5) * 180;
+    const z = (Math.random() - 0.5) * 180;
+    if (Math.hypot(x, z) > 10) {
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.4, 3, 6),
+        new THREE.MeshStandardMaterial({ color: 0x4a2e18 })
+      );
+      trunk.position.y = 1.5;
+      tree.add(trunk);
+
+      const foliage = new THREE.Mesh(
+        new THREE.ConeGeometry(2, 4, 6),
+        new THREE.MeshStandardMaterial({ color: 0x1e4620 })
+      );
+      foliage.position.y = 4;
+      tree.add(foliage);
+
+      tree.position.set(x, 0, z);
+      scene.add(tree);
+      worldEntities.trees.push({ x, z, hasFruit: true });
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+function updateWorldTime(delta) {
+  timeProgress += delta * 0.04;
+  isNightTime = Math.sin(timeProgress) < 0;
+  if (isNightTime) {
+    sunLight.intensity = 0.05;
+    hemiLight.intensity = 0.15;
+    scene.fog.color.setHex(0x020307);
+  } else {
+    sunLight.intensity = 1.2;
+    hemiLight.intensity = 0.7;
+    scene.fog.color.setHex(0x0a101d);
+  }
+}
+
+function spawn3DStructure(type, x, z) {
+  const mesh = new THREE.Mesh(
+    type === "tent" ? new THREE.ConeGeometry(2.5, 3, 4) : new THREE.DodecahedronGeometry(1),
+    new THREE.MeshStandardMaterial({ color: type === "tent" ? 0xd35400 : 0xe74c3c })
+  );
+  mesh.position.set(x, type === "tent" ? 1.5 : 0.5, z);
+  scene.add(mesh);
+}
+
+// --- ৪. প্লেয়ার ও জয়স্টিক ইঞ্জিন ---
+let playerMesh, playerFlashlight;
+const playerState = { x: 0, z: 15, speed: 0.35, rotation: 0 };
+const inputVector = { x: 0, z: 0 };
+
+function initPlayer(scene) {
+  playerMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.7, 0.7, 2.2, 12),
+    new THREE.MeshStandardMaterial({ color: 0x00ffaa, roughness: 0.3 })
+  );
+  playerMesh.position.set(playerState.x, 1.1, playerState.z);
+  playerMesh.castShadow = true;
+  scene.add(playerMesh);
+
+  playerFlashlight = new THREE.SpotLight(0xffffff, 2.5, 40, Math.PI / 6, 0.4);
+  playerFlashlight.position.set(playerState.x, 2.5, playerState.z);
+  scene.add(playerFlashlight);
+  scene.add(playerFlashlight.target);
+
+  setupTouchJoystick();
+}
+
+function setupTouchJoystick() {
+  const zone = document.getElementById("joyZone");
+  const knob = document.getElementById("joyKnob");
+  let tId = null;
+
+  zone.addEventListener("touchstart", (e) => {
+    tId = e.changedTouches[0].identifier;
+    updateJoy(e.changedTouches[0]);
+  }, { passive: false });
+
+  zone.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    for (let t of e.changedTouches) {
+      if (t.identifier === tId) updateJoy(t);
+    }
+  }, { passive: false });
+
+  const resetJoy = () => {
+    tId = null;
+    inputVector.x = 0;
+    inputVector.z = 0;
+    knob.style.transform = `translate(0px, 0px)`;
+  };
+  zone.addEventListener("touchend", resetJoy);
+  zone.addEventListener("touchcancel", resetJoy);
+
+  function updateJoy(touch) {
+    const rect = zone.getBoundingClientRect();
+    let dx = touch.clientX - (rect.left + rect.width / 2);
+    let dy = touch.clientY - (rect.top + rect.height / 2);
+    const dist = Math.hypot(dx, dy);
+    const maxR = rect.width / 2 - 15;
+    if (dist > maxR) {
+      dx = (dx / dist) * maxR;
+      dy = (dy / dist) * maxR;
+    }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    inputVector.x = dx / maxR;
+    inputVector.z = dy / maxR;
+  }
+}
+
+function updatePlayer(camera) {
+  if (!playerMesh) return;
+  if (inputVector.x !== 0 || inputVector.z !== 0) {
+    playerState.x += inputVector.x * playerState.speed;
+    playerState.z += inputVector.z * playerState.speed;
+    playerState.rotation = Math.atan2(inputVector.x, inputVector.z);
+    playerMesh.rotation.y = playerState.rotation;
+  }
+  playerMesh.position.x = playerState.x;
+  playerMesh.position.z = playerState.z;
+
+  playerFlashlight.position.set(playerState.x, 2.5, playerState.z);
+  playerFlashlight.target.position.set(
+    playerState.x + Math.sin(playerState.rotation) * 8,
+    0,
+    playerState.z + Math.cos(playerState.rotation) * 8
+  );
+
+  camera.position.x = playerState.x;
+  camera.position.y = 20;
+  camera.position.z = playerState.z + 16;
+  camera.lookAt(playerState.x, 1, playerState.z);
+}
+
+// --- ৫. সারভাইভাল ও ৫ম ডাইমেনশন ---
+const SurvivalState = { hp: 100, pain: 0, fear: 15, isInsideTent: false };
+
+function triggerHapticFeedback(type = 'light') {
+  const tg = window.Telegram ? window.Telegram.WebApp : null;
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(type);
+  else if (navigator.vibrate) navigator.vibrate(type === 'heavy' ? [50, 30, 50] : 30);
+}
+
+function updateSurvivalCycle() {
+  SurvivalState.isInsideTent = false;
+  ActiveDeployables.forEach(s => {
+    if (s.type === "tent" && Math.hypot(playerState.x - s.x, playerState.z - s.z) < 4) {
+      SurvivalState.isInsideTent = true;
+    }
+  });
+
+  if (SurvivalState.isInsideTent) {
+    SurvivalState.fear = Math.max(0, SurvivalState.fear - 4);
+    SurvivalState.hp = Math.min(100, SurvivalState.hp + 2);
+  } else if (isNightTime) {
+    SurvivalState.fear = Math.min(100, SurvivalState.fear + 3);
+  }
+
+  const overlay = document.getElementById("sensoryFilter");
+  if (overlay) {
+    const rAlpha = (SurvivalState.pain / 100) * 0.6;
+    const blurVal = SurvivalState.fear > 60 ? (SurvivalState.fear - 60) * 0.1 : 0;
+    overlay.style.background = `radial-gradient(circle, transparent 40%, rgba(220, 20, 20, ${rAlpha}) 100%)`;
+    overlay.style.filter = blurVal > 0 ? `blur(${blurVal}px)` : "none";
+  }
+
+  document.getElementById("hpTxt").innerText = Math.round(SurvivalState.hp);
+  document.getElementById("hpBar").style.width = SurvivalState.hp + "%";
+  document.getElementById("painTxt").innerText = Math.round(SurvivalState.pain);
+  document.getElementById("painBar").style.width = SurvivalState.pain + "%";
+  document.getElementById("fearTxt").innerText = Math.round(SurvivalState.fear);
+  document.getElementById("fearBar").style.width = SurvivalState.fear + "%";
+
+  if (SurvivalState.hp <= 0) {
+    alert("💀 VITAL SIGNS TERMINATED!");
+    location.reload();
+  }
+}
+
+// --- ৬. জম্বি এআই ও কমব্যাট ---
+const zombies = [];
+
+function initEntities(scene) {
+  for (let i = 0; i < 15; i++) {
+    const zMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 2.2, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x2e7d32 })
+    );
+    zMesh.position.set((Math.random() - 0.5) * 160, 1.1, (Math.random() - 0.5) * 160);
+    scene.add(zMesh);
+    zombies.push({ mesh: zMesh, hp: 40 });
+  }
+}
+
+function updateEntities() {
+  zombies.forEach(z => {
+    const dist = z.mesh.position.distanceTo(playerMesh.position);
+    if (!SurvivalState.isInsideTent && dist < (isNightTime ? 35 : 20)) {
+      z.mesh.lookAt(playerMesh.position);
+      z.mesh.translateZ(0.08);
+      if (dist < 1.8) {
+        SurvivalState.hp = Math.max(0, SurvivalState.hp - 0.2);
+        SurvivalState.pain = Math.min(100, SurvivalState.pain + 0.3);
+        triggerHapticFeedback('light');
+      }
+    }
+  });
+}
+
+function attackNearestZombie() {
+  for (let z of zombies) {
+    if (z.mesh.position.distanceTo(playerMesh.position) < 4.5) {
+      z.hp -= 20;
+      z.mesh.material.color.setHex(0xe74c3c);
+      setTimeout(() => z.mesh.material.color.setHex(0x2e7d32), 150);
+      if (z.hp <= 0) {
+        z.mesh.position.set((Math.random() - 0.5) * 160, 1.1, (Math.random() - 0.5) * 160);
+        z.hp = 40;
+        InventoryState.slots.stone += 2;
+        updateInventoryDisplay();
+        notify("জম্বি খতম! পাথর পাওয়া গেছে।");
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+// --- ইন্টারঅ্যাকশন কন্ট্রোলস ---
+function notify(msg) {
+  const t = document.getElementById("toastMsg");
+  t.innerText = msg;
+  t.style.opacity = "1";
+  setTimeout(() => t.style.opacity = "0", 2000);
+}
+
+function toggleCraftingModal() {
+  const m = document.getElementById("craftingModal");
+  m.style.display = m.style.display === "flex" ? "none" : "flex";
+}
+
+function updateInventoryDisplay() {
+  document.getElementById("woodCount").innerText = InventoryState.slots.wood;
+  document.getElementById("stoneCount").innerText = InventoryState.slots.stone;
+  document.getElementById("fabricCount").innerText = InventoryState.slots.fabric;
+}
+
+function executeCraft(type) {
+  const res = craftItem(type);
+  notify(res.msg);
+  if (res.success) {
+    AudioEngine.playHitSound();
+    triggerHapticFeedback('medium');
+    updateInventoryDisplay();
+  }
+}
+
+function handleDeploy() {
+  if (InventoryState.deployables.tent > 0) {
+    deployStructure("tent", playerState.x, playerState.z);
+    spawn3DStructure("tent", playerState.x, playerState.z);
+    AudioEngine.playHitSound();
+    notify("⛺ তাঁবু তৈরি হলো! ভেতরে ঢুকলে জম্বি দেখতে পাবে না।");
+  } else if (InventoryState.deployables.campfire > 0) {
+    deployStructure("campfire", playerState.x, playerState.z);
+    spawn3DStructure("campfire", playerState.x, playerState.z);
+    AudioEngine.playHitSound();
+    notify("🔥 আগুন জ্বালানো হলো!");
+  } else {
+    notify("ব্যাকপ্যাকে তাঁবু বা ক্যাম্পফায়ার নেই!");
+  }
+}
+
+function handleStrike() {
+  if (attackNearestZombie()) {
+    AudioEngine.playHitSound();
+  } else {
+    notify("আক্রমণ লক্ষ্যভ্রষ্ট হয়েছে!");
+  }
+}
+
+function handleInteraction() {
+  for (let t of worldEntities.trees) {
+    if (Math.hypot(playerState.x - t.x, playerState.z - t.z) < 5) {
+      InventoryState.slots.wood += 2;
+      AudioEngine.playHitSound();
+      updateInventoryDisplay();
+      notify("গাছ থেকে কাঠ সংগ্রহ করলেন!");
+      return;
+    }
+  }
+  notify("কাছাকাছি কিছু নেই।");
+}
+
+// --- ইঞ্জিন বুটস্ট্র্যাপ ---
+window.onload = () => {
+  initWorldEngine("webgl-container");
+  initPlayer(scene);
+  initEntities(scene);
+  updateInventoryDisplay();
+
+  setInterval(() => {
+    updateSurvivalCycle();
+    document.getElementById("cycleLabel").innerText = isNightTime ? "🌑 গভীর রাত" : "☀️ শান্ত সকাল";
+    if (SurvivalState.fear > 60) AudioEngine.playHeartbeat();
+  }, 2000);
+
+  function mainLoop() {
+    requestAnimationFrame(mainLoop);
+    updateWorldTime(0.016);
+    updatePlayer(camera);
+    updateEntities();
+    renderer.render(scene, camera);
+  }
+  mainLoop();
+};
+</script>
+</body>
+</html>
 
