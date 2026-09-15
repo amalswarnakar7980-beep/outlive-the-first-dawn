@@ -1,193 +1,64 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Outlive 5D - Hyper Engine Online</title>
+  <title>Outlive 5D</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #06090e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
-    #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #06090e; font-family: monospace; }
+    #gameContainer { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+    #sensoryFilter { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 999; }
     
-    /* 5D মাস্টার HUD */
     #hud {
-      position: fixed; top: 14px; left: 14px; z-index: 1000;
-      background: rgba(10, 15, 26, 0.9); border: 1px solid #00ffaa;
+      position: fixed; top: 12px; left: 12px; z-index: 1000;
+      background: rgba(8, 12, 20, 0.9); border: 1px solid #00ffaa;
       border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 11px;
-      backdrop-filter: blur(6px); box-shadow: 0 4px 20px rgba(0, 255, 170, 0.2);
     }
     .bar-bg { background: #1e293b; height: 5px; border-radius: 3px; margin: 4px 0 8px 0; width: 140px; }
-    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
     
-    /* অন-স্ক্রিন কুইক সুইচবোর্ড */
     #controls {
       position: fixed; bottom: 16px; left: 16px; z-index: 1000;
-      display: flex; gap: 8px; flex-wrap: wrap;
+      display: flex; gap: 8px;
     }
     button {
       padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold;
-      color: #fff; cursor: pointer; font-size: 11px; transition: transform 0.1s;
+      color: #fff; cursor: pointer; font-size: 11px;
     }
-    button:active { transform: scale(0.95); }
   </style>
-
-  <!-- Three.js গ্লোবাল CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-  <div id="canvas-container"></div>
+  <div id="gameContainer"></div>
+  <div id="sensoryFilter"></div>
 
-  <!-- HUD কার্ড -->
   <div id="hud">
-    <div style="color: #00ffaa; font-weight: 800; margin-bottom: 6px;">⚡ 5D HYPER ENGINE ONLINE</div>
-    <div>HP: <span id="hpVal">100</span>% | <span id="bpmVal" style="color: #2ed573;">74 BPM</span></div>
+    <div style="color: #00ffaa; font-weight: bold; margin-bottom: 4px;">5D SIMULATION CORE</div>
+    <div>HP: <span id="hpVal">100</span>% | <span id="bpmVal" style="color: #2ed573;">72 BPM</span></div>
     <div class="bar-bg"><div id="hpBar" class="bar-fill" style="background: #ff4757; width: 100%;"></div></div>
-    <div>ENERGY: <span id="nrgVal">100</span>%</div>
+    <div>STAMINA: <span id="nrgVal">100</span>%</div>
     <div class="bar-bg"><div id="nrgBar" class="bar-fill" style="background: #ffa502; width: 100%;"></div></div>
     <div>DIMENSION: <b id="dimVal" style="color: #00ffaa;">3D REALITY</b></div>
   </div>
 
-  <!-- কন্ট্রোল বাটন -->
   <div id="controls">
     <button id="btnShift" style="background: #6c5ce7;">🌀 5D SHIFT (V)</button>
-    <button id="btnTime" style="background: #e17055;">⏳ TIME WARP (T)</button>
-    <button id="btnCamp" style="background: #00b894;">🔥 FIRE BEACON (C)</button>
+    <button id="btnTime" style="background: #e17055;">⏳ TIME (T)</button>
+    <button id="btnCamp" style="background: #00b894;">🔥 CRAFT (C)</button>
   </div>
 
-  <script>
-    let scene, camera, renderer, clock;
-    let player, terrainGrid, hyperBeacon;
-    let hyperV = 0.0, targetV = 0.0, timeDilation = 1.0;
-    const keys = { w: false, s: false, a: false, d: false };
+  <!-- স্ক্রিপ্ট লোডিং সিকোয়েন্স -->
+  <script src="audio.js"></script>
+  <script src="connection_guard.js"></script>
+  <script src="world.js"></script>
+  <script src="player.js"></script>
+  <script src="survival.js"></script>
+  <script src="inventory.js"></script>
+  <script src="crafting_engine.js"></script>
+  <script src="entities.js"></script>
+  <script src="main.js"></script>
 
-    function initEngine() {
-      clock = new THREE.Clock();
-
-      // ১. সিন তৈরি
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x06090e);
-      scene.fog = new THREE.FogExp2(0x06090e, 0.015);
-
-      // ২. ক্যামেরা
-      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 14, 20);
-
-      // ৩. রেন্ডারার
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true;
-      document.getElementById("canvas-container").appendChild(renderer.domElement);
-
-      // ৪. লাইটিং
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-      scene.add(ambientLight);
-
-      const dirLight = new THREE.DirectionalLight(0x00ffaa, 1.2);
-      dirLight.position.set(20, 40, 20);
-      dirLight.castShadow = true;
-      scene.add(dirLight);
-
-      // ৫. কোয়ান্টাম স্পেস গ্রিড (Terrain)
-      terrainGrid = new THREE.GridHelper(160, 50, 0x00ffaa, 0x1e272e);
-      terrainGrid.position.y = 0;
-      scene.add(terrainGrid);
-
-      // ৬. বায়োমেকানিকাল প্লেয়ার রিগ
-      const playerGeo = new THREE.BoxGeometry(1.4, 2.2, 1.4);
-      const playerMat = new THREE.MeshStandardMaterial({ color: 0x00ffaa, roughness: 0.3, metalness: 0.5 });
-      player = new THREE.Mesh(playerGeo, playerMat);
-      player.position.set(0, 1.1, 0);
-      player.castShadow = true;
-      scene.add(player);
-
-      camera.lookAt(player.position);
-
-      setupInputs();
-      window.addEventListener("resize", onWindowResize);
-
-      // ফ্রেম রেন্ডার শুরু
-      renderLoop();
-    }
-
-    // ইনপুট ও ইন্টারঅ্যাকশন
-    function setupInputs() {
-      window.addEventListener("keydown", (e) => {
-        const k = e.key.toLowerCase();
-        if (keys.hasOwnProperty(k)) keys[k] = true;
-        if (k === "v") toggle5D();
-        if (k === "t") toggleTime();
-        if (k === "c") deployBeacon();
-      });
-
-      window.addEventListener("keyup", (e) => {
-        const k = e.key.toLowerCase();
-        if (keys.hasOwnProperty(k)) keys[k] = false;
-      });
-
-      document.getElementById("btnShift").onclick = toggle5D;
-      document.getElementById("btnTime").onclick = toggleTime;
-      document.getElementById("btnCamp").onclick = deployBeacon;
-    }
-
-    function toggle5D() {
-      targetV = targetV === 0.0 ? 1.0 : 0.0;
-      const dimEl = document.getElementById("dimVal");
-      dimEl.innerText = targetV === 1.0 ? "5D ETHEREAL VOID" : "3D REALITY";
-      dimEl.style.color = targetV === 1.0 ? "#bf55ec" : "#00ffaa";
-    }
-
-    function toggleTime() {
-      timeDilation = timeDilation === 1.0 ? 0.3 : (timeDilation === 0.3 ? 2.5 : 1.0);
-      document.getElementById("btnTime").innerText = timeDilation === 0.3 ? "⏳ SLOW-MO" : (timeDilation === 2.5 ? "⚡ FAST" : "⏳ TIME (T)");
-    }
-
-    function deployBeacon() {
-      const beaconGeo = new THREE.OctahedronGeometry(0.9);
-      const beaconMat = new THREE.MeshStandardMaterial({ color: 0xff4757, emissive: 0xff3838 });
-      hyperBeacon = new THREE.Mesh(beaconGeo, beaconMat);
-      hyperBeacon.position.set(player.position.x + 3, 1.5, player.position.z + 3);
-      scene.add(hyperBeacon);
-    }
-
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    // মাস্টার অ্যানিমেশন ও কাইনেমেটিক্স লুপ
-    function renderLoop() {
-      requestAnimationFrame(renderLoop);
-
-      const delta = clock.getDelta() * timeDilation;
-
-      // ৫ডি ডাইমেনশন ইন্টারপোলেশন
-      hyperV = THREE.MathUtils.lerp(hyperV, targetV, 0.05);
-      if (terrainGrid) {
-        terrainGrid.rotation.y += delta * (0.05 + hyperV * 0.2);
-      }
-
-      // প্লেয়ার মুভমেন্ট
-      const moveSpeed = 14 * delta;
-      if (keys.w) player.position.z -= moveSpeed;
-      if (keys.s) player.position.z += moveSpeed;
-      if (keys.a) player.position.x -= moveSpeed;
-      if (keys.d) player.position.x += moveSpeed;
-
-      // ক্যামেরা মসৃণ ট্র্যাকিং
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, player.position.x, 0.08);
-      camera.position.z = THREE.MathUtils.lerp(camera.position.z, player.position.z + 18, 0.08);
-      camera.position.y = THREE.MathUtils.lerp(camera.position.y, player.position.y + 14, 0.08);
-      camera.lookAt(player.position.x, 1, player.position.z);
-
-      if (hyperBeacon) hyperBeacon.rotation.y += delta * 2;
-
-      renderer.render(scene, camera);
-    }
-
-    window.addEventListener("DOMContentLoaded", initEngine);
-  </script>
 </body>
 </html>
