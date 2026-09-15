@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Outlive 5D</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #05070b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+    #gameContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+    #sensoryFilter {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 99;
+      transition: background 0.3s ease, filter 0.3s ease;
+    }
+    #hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      background: rgba(10, 15, 26, 0.92);
+      border: 1px solid #00ffaa;
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 11px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 15px rgba(0, 255, 170, 0.2);
+    }
+    .bar-bg {
+      background: #1e293b;
+      height: 4px;
+      border-radius: 2px;
+      margin: 3px 0 6px 0;
+      width: 130px;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.2s;
+    }
+    #topNav {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      gap: 8px;
+    }
+    .nav-btn {
+      background: rgba(10, 18, 30, 0.85);
+      border: 1px solid #00ffaa;
+      border-radius: 6px;
+      color: #00ffaa;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 8px 12px;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+    .nav-btn:active {
+      transform: scale(0.96);
+    }
+    #joystickBase {
+      position: fixed;
+      bottom: 28px;
+      left: 28px;
+      width: 110px;
+      height: 110px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 2px solid #00ffaa;
+      border-radius: 50%;
+      z-index: 1000;
+      box-shadow: 0 0 15px rgba(0, 255, 170, 0.25);
+    }
+    #joystickThumb {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 44px;
+      height: 44px;
+      margin-top: -22px;
+      margin-left: -22px;
+      background: #00ffaa;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #00ffaa;
+      pointer-events: none;
+      transform: translate(0px, 0px);
+    }
+    #actionPad {
+      position: fixed;
+      bottom: 25px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .action-row {
+      display: flex;
+      gap: 10px;
+    }
+    .act-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+      color: #fff;
+      font-weight: 900;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      touch-action: manipulation;
+    }
+    .act-btn:active {
+      transform: scale(0.9);
+    }
+    #btnAttack {
+      width: 62px;
+      height: 62px;
+      background: #d63031;
+      border-color: #ff7675;
+      font-size: 14px;
+    }
+    .game-modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 350px;
+      max-width: 94vw;
+      background: rgba(8, 14, 24, 0.96);
+      border: 1px solid #00ffaa;
+      border-radius: 12px;
+      padding: 16px;
+      color: #fff;
+      z-index: 10005;
+      box-shadow: 0 0 35px rgba(0, 255, 170, 0.3);
+      backdrop-filter: blur(8px);
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: #ff4757;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .craft-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .craft-tab-btn {
+      flex: 1;
+      padding: 6px 0;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid #334155;
+      color: #94a3b8;
+      font-size: 10px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .craft-tab-btn.active {
+      background: #00ffaa;
+      color: #000;
+      border-color: #00ffaa;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="gameContainer"></div>
+  <div id="sensoryFilter"></div>
+
+  <div id="hud">
+    <div style="color: #00ffaa; font-weight: 800; margin-bottom: 4px;">OUTLIVE 5D CORE</div>
+    <div>HP: <span id="hpVal">100</span>% | <span id="bpmVal" style="color: #2ed573;">72 BPM</span></div>
+    <div class="bar-bg"><div id="hpBar" class="bar-fill" style="background: #ff4757; width: 100%;"></div></div>
+    <div>STAMINA: <span id="nrgVal">100</span>%</div>
+    <div class="bar-bg"><div id="nrgBar" class="bar-fill" style="background: #ffa502; width: 100%;"></div></div>
+    <div>DIMENSION: <b id="dimVal" style="color: #00ffaa;">3D REALITY</b></div>
+  </div>
+
+  <div id="topNav">
+    <button class="nav-btn" id="btnOpenCraft">CRAFT (C)</button>
+    <button class="nav-btn" id="btnOpenInv">BACKPACK (I)</button>
+  </div>
+
+  <div id="joystickBase">
+    <div id="joystickThumb"></div>
+  </div>
+
+  <div id="actionPad">
+    <div class="action-row">
+      <button class="act-btn" id="btnShift" style="background: #6c5ce7;">5D</button>
+      <button class="act-btn" id="btnTime" style="background: #e17055;">TIME</button>
+    </div>
+    <div class="action-row">
+      <button class="act-btn" id="btnCollect" style="background: #0984e3;">GET</button>
+      <button class="act-btn" id="btnAttack">ATK</button>
+    </div>
+  </div>
+
+  <div class="game-modal" id="craftingModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">BLUEPRINT FABRICATOR</span>
+      <button class="close-btn" id="btnCloseCraft">X</button>
+    </div>
+    <div class="craft-tabs">
+      <button class="craft-tab-btn active" id="tabSurvival" onclick="switchCraftTab('survival')">SURVIVAL</button>
+      <button class="craft-tab-btn" id="tabShelter" onclick="switchCraftTab('shelter')">SHELTER</button>
+      <button class="craft-tab-btn" id="tabTech" onclick="switchCraftTab('tech')">5D TECH</button>
+    </div>
+    <div id="craftRecipeList" style="display: flex; flex-direction: column; gap: 8px; max-height: 230px; overflow-y: auto;"></div>
+  </div>
+
+  <div class="game-modal" id="inventoryModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">NEURAL STORAGE</span>
+      <button class="close-btn" id="btnCloseInv">X</button>
+    </div>
+    <div style="font-size: 11px; color: #848e9c; margin-bottom: 8px;">Load: <b id="invWeightText" style="color: #fff;">0.0</b> / 45.0 kg</div>
+    <div id="invGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;"></div>
+    <div id="itemDetailPane" style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; font-size: 11px; min-height: 44px; margin-bottom: 8px;">
+      <div id="selectedItemTitle" style="color: #00ffee; font-weight: bold;">Select an item</div>
+      <div id="selectedItemDesc" style="color: #ccc; font-size: 10px;">Tap a slot to inspect or use.</div>
+    </div>
+    <button id="btnUseItem" style="width: 100%; background: #00ffaa; border: none; border-radius: 6px; padding: 8px; font-weight: bold; cursor: pointer; color: #000;">USE ITEM</button>
+  </div>
+
+  <script>
+    window.masterScene = new THREE.Scene();
+    window.masterCamera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    window.masterCamera.position.set(0, 14, 20);
+
+    window.masterRenderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    window.masterRenderer.setSize(window.innerWidth, window.innerHeight);
+    window.masterRenderer.shadowMap.enabled = true;
+    document.getElementById("gameContainer").appendChild(window.masterRenderer.domElement);
+
+    window.worldSources = {
+      skyFog: new THREE.FogExp2(0x06090e, 0.015),
+      ambientLight: new THREE.AmbientLight(0xffffff, 0.4),
+      sunLight: new THREE.DirectionalLight(0xffd32a, 1.2),
+      moonLight: new THREE.DirectionalLight(0x3867d6, 0.3),
+      sunMesh: new THREE.Mesh(new THREE.SphereGeometry(3, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffa502 })),
+      moonMesh: new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xdff9fb })),
+      terrainGrid: new THREE.GridHelper(240, 60, 0x00ffaa, 0x1f293d)
+    };
+
+    window.masterScene.fog = window.worldSources.skyFog;
+    window.masterScene.add(window.worldSources.ambientLight);
+    window.worldSources.sunLight.castShadow = true;
+    window.masterScene.add(window.worldSources.sunLight);
+    window.masterScene.add(window.worldSources.moonLight);
+    window.masterScene.add(window.worldSources.sunMesh);
+    window.masterScene.add(window.worldSources.moonMesh);
+    window.masterScene.add(window.worldSources.terrainGrid);
+
+    window.humanoidPlayer = new THREE.Group();
+
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x00ffaa, roughness: 0.3, metalness: 0.4 });
+    const limbMat = new THREE.MeshStandardMaterial({ color: 0x0abde3, roughness: 0.5 });
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.4, 0.6), skinMat);
+    torso.position.y = 1.4;
+    torso.castShadow = true;
+    window.humanoidPlayer.add(torso);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), limbMat);
+    head.position.y = 2.4;
+    head.castShadow = true;
+    window.humanoidPlayer.add(head);
+
+    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), limbMat);
+    leftArm.position.set(-0.7, 1.4, 0);
+    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), limbMat);
+    rightArm.position.set(0.7, 1.4, 0);
+    window.humanoidPlayer.add(leftArm);
+    window.humanoidPlayer.add(rightArm);
+
+    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), limbMat);
+    leftLeg.position.set(-0.3, 0.6, 0);
+    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), limbMat);
+    rightLeg.position.set(0.3, 0.6, 0);
+    window.humanoidPlayer.add(leftLeg);
+    window.humanoidPlayer.add(rightLeg);
+
+    window.humanoidLimbs = { torso, head, leftArm, rightArm, leftLeg, rightLeg };
+    window.masterScene.add(window.humanoidPlayer);
+
+    window.MasterCraftingData = {
+      survival: {
+        campfire: { name: "Thermic Campfire", cost: { wood: 4, stone: 2 } },
+        water_collector: { name: "Water Condenser", cost: { wood: 3, fabric: 2 } }
+      },
+      shelter: {
+        tent: { name: "Reinforced Tent", cost: { wood: 6, fabric: 4 } },
+        barricade: { name: "Wood Barricade", cost: { wood: 8 } }
+      },
+      tech: {
+        temporal_beacon: { name: "5D Anchor Beacon", cost: { stone: 5, quantum_core: 1 } }
+      }
+    };
+
+    let activeCraftTab = "survival";
+    function switchCraftTab(tab) {
+      activeCraftTab = tab;
+      document.querySelectorAll(".craft-tab-btn").forEach(b => {
+        b.classList.toggle("active", b.id.toLowerCase().includes(tab));
+      });
+      renderCraftUI();
+    }
+
+    function renderCraftUI() {
+      const list = document.getElementById("craftRecipeList");
+      if (!list) return;
+      list.innerHTML = "";
+
+      const recipes = window.MasterCraftingData[activeCraftTab] || {};
+      Object.keys(recipes).forEach(key => {
+        const item = recipes[key];
+        let canAfford = true;
+        let costTxt = Object.keys(item.cost).map(m => {
+          const has = (window.InventoryState && window.InventoryState.slots[m]) || 0;
+          if (has < item.cost[m]) canAfford = false;
+          return `${m}: ${has}/${item.cost[m]}`;
+        }).join(" | ");
+
+        const row = document.createElement("div");
+        row.style.cssText = `background: rgba(20,30,45,0.85); border: 1px solid ${canAfford ? "#00ffaa" : "#334155"}; border-radius: 8px; padding: 8px; display: flex; justify-content: space-between; align-items: center;`;
+        row.innerHTML = `
+          <div>
+            <div style="font-weight: 700; font-size: 11px;">${item.name}</div>
+            <div style="font-size: 9px; color: ${canAfford ? "#2ed573" : "#ff4757"}; font-weight: bold; margin-top: 2px;">${costTxt}</div>
+          </div>
+          <button style="background: ${canAfford ? "#00b894" : "#475569"}; border: none; border-radius: 6px; color: #fff; font-weight: bold; font-size: 10px; padding: 6px 10px; cursor: ${canAfford ? "pointer" : "not-allowed"};" ${canAfford ? "" : "disabled"}>DEPLOY</button>
+        `;
+
+        if (canAfford) {
+          row.querySelector("button").onclick = () => {
+            if (typeof craftAndDeploy === "function") {
+              craftAndDeploy(key, item);
+              renderCraftUI();
+            }
+          };
+        }
+        list.appendChild(row);
+      });
+    }
+
+    document.getElementById("btnOpenCraft").onclick = () => {
+      document.getElementById("craftingModal").style.display = "block";
+      document.getElementById("inventoryModal").style.display = "none";
+      renderCraftUI();
+    };
+    document.getElementById("btnCloseCraft").onclick = () => document.getElementById("craftingModal").style.display = "none";
+
+    document.getElementById("btnOpenInv").onclick = () => {
+      document.getElementById("inventoryModal").style.display = "block";
+      document.getElementById("craftingModal").style.display = "none";
+      if (window.InventoryUI) window.InventoryUI.renderSlots();
+    };
+    document.getElementById("btnCloseInv").onclick = () => document.getElementById("inventoryModal").style.display = "none";
+
+    window.addEventListener("resize", () => {
+      if (window.masterCamera && window.masterRenderer) {
+        window.masterCamera.aspect = window.innerWidth / window.innerHeight;
+        window.masterCamera.updateProjectionMatrix();
+        window.masterRenderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+  </script>
+
+  <script src="audio.js"></script>
+  <script src="connection_guard.js"></script>
+  <script src="world.js"></script>
+  <script src="player.js"></script>
+  <script src="survival.js"></script>
+  <script src="inventory.js"></script>
+  <script src="entities.js"></script>
+  <script src="control_engine.js"></script>
+
+</body>
+</html>
