@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Outlive 5D - Living Hyperspace Ecosystem</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #020408; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+    #gameContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+    #sensoryFilter { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 99; transition: background 0.3s ease, filter 0.3s ease; }
+
+    #hud {
+      position: fixed; top: 12px; left: 12px; z-index: 1000;
+      background: rgba(8, 14, 26, 0.9); border: 1px solid #00ffaa;
+      border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 11px;
+      backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0, 255, 170, 0.25);
+    }
+    .bar-bg { background: #1a2332; height: 4px; border-radius: 2px; margin: 3px 0 6px 0; width: 130px; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.2s; }
+
+    #topNav { position: fixed; top: 12px; right: 12px; z-index: 1000; display: flex; gap: 8px; }
+    .nav-btn {
+      background: rgba(10, 18, 30, 0.85); border: 1px solid #00ffaa;
+      border-radius: 6px; color: #00ffaa; font-weight: 800; font-size: 11px;
+      padding: 8px 12px; cursor: pointer; backdrop-filter: blur(4px);
+    }
+    .nav-btn:active { transform: scale(0.95); }
+
+    #joystickBase {
+      position: fixed; bottom: 28px; left: 28px; width: 112px; height: 112px;
+      background: rgba(15, 23, 42, 0.75); border: 2px solid #00ffaa; border-radius: 50%;
+      z-index: 1000; box-shadow: 0 0 16px rgba(0, 255, 170, 0.3);
+    }
+    #joystickThumb {
+      position: absolute; top: 50%; left: 50%; width: 44px; height: 44px;
+      margin-top: -22px; margin-left: -22px; background: #00ffaa; border-radius: 50%;
+      box-shadow: 0 0 12px #00ffaa; pointer-events: none; transform: translate(0px, 0px);
+    }
+
+    #actionPad {
+      position: fixed; bottom: 25px; right: 20px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+    }
+    .action-row { display: flex; gap: 10px; }
+    .act-btn {
+      width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25);
+      color: #fff; font-weight: 900; font-size: 11px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    }
+    .act-btn:active { transform: scale(0.9); }
+    #btnAttack { width: 62px; height: 62px; background: #d63031; border-color: #ff7675; font-size: 14px; }
+
+    .game-modal {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 350px; max-width: 94vw; background: rgba(8, 14, 24, 0.96); border: 1px solid #00ffaa;
+      border-radius: 12px; padding: 16px; color: #fff; z-index: 10005; box-shadow: 0 0 35px rgba(0, 255, 170, 0.3);
+      backdrop-filter: blur(8px);
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 8px; margin-bottom: 10px; }
+    .close-btn { background: none; border: none; color: #ff4757; font-size: 18px; font-weight: bold; cursor: pointer; }
+
+    .craft-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .craft-tab-btn {
+      flex: 1; padding: 6px 0; background: rgba(255,255,255,0.06); border: 1px solid #334155;
+      color: #94a3b8; font-size: 10px; font-weight: bold; border-radius: 6px; cursor: pointer;
+    }
+    .craft-tab-btn.active { background: #00ffaa; color: #000; border-color: #00ffaa; }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="gameContainer"></div>
+  <div id="sensoryFilter"></div>
+
+  <div id="hud">
+    <div style="color: #00ffaa; font-weight: 800; margin-bottom: 4px;">OUTLIVE 5D ECOSYSTEM</div>
+    <div>HP: <span id="hpVal">100</span>% | <span id="bpmVal" style="color: #2ed573;">74 BPM</span></div>
+    <div class="bar-bg"><div id="hpBar" class="bar-fill" style="background: #ff4757; width: 100%;"></div></div>
+    <div>STAMINA: <span id="nrgVal">100</span>%</div>
+    <div class="bar-bg"><div id="nrgBar" class="bar-fill" style="background: #ffa502; width: 100%;"></div></div>
+    <div>WEATHER: <b id="weatherTxt" style="color: #00d2d3;">CLEAR</b></div>
+    <div>CYCLE: <b id="cycleTxt" style="color: #ffd32a;">DAY</b></div>
+  </div>
+
+  <div id="topNav">
+    <button class="nav-btn" id="btnOpenCraft">CRAFT (C)</button>
+    <button class="nav-btn" id="btnOpenInv">BAG (I)</button>
+  </div>
+
+  <div id="joystickBase">
+    <div id="joystickThumb"></div>
+  </div>
+
+  <div id="actionPad">
+    <div class="action-row">
+      <button class="act-btn" id="btnShift" style="background: #6c5ce7;">5D</button>
+      <button class="act-btn" id="btnWeather" style="background: #0984e3;">RAIN</button>
+    </div>
+    <div class="action-row">
+      <button class="act-btn" id="btnHarvest" style="background: #2ed573;">🍎 GET</button>
+      <button class="act-btn" id="btnAttack">⚔️ ATK</button>
+    </div>
+  </div>
+
+  <div class="game-modal" id="craftingModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">BLUEPRINT FABRICATOR</span>
+      <button class="close-btn" id="btnCloseCraft">✕</button>
+    </div>
+    <div class="craft-tabs">
+      <button class="craft-tab-btn active" id="tabSurvival" onclick="switchCraftTab('survival')">SURVIVAL</button>
+      <button class="craft-tab-btn" id="tabShelter" onclick="switchCraftTab('shelter')">SHELTER</button>
+      <button class="craft-tab-btn" id="tabTech" onclick="switchCraftTab('tech')">5D TECH</button>
+    </div>
+    <div id="craftRecipeList" style="display: flex; flex-direction: column; gap: 8px; max-height: 230px; overflow-y: auto;"></div>
+  </div>
+
+  <div class="game-modal" id="inventoryModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">NEURAL STORAGE</span>
+      <button class="close-btn" id="btnCloseInv">✕</button>
+    </div>
+    <div style="font-size: 11px; color: #848e9c; margin-bottom: 8px;">Capacity: <b id="invWeightText" style="color: #fff;">0.0</b> / 50.0 kg</div>
+    <div id="invGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;"></div>
+    <button id="btnUseItem" style="width: 100%; background: #00ffaa; border: none; border-radius: 6px; padding: 8px; font-weight: bold; cursor: pointer; color: #000;">CONSUME / USE</button>
+  </div>
+
+  <script>
+    // ==========================================
+    // ১. গ্লোবাল স্টেট ও ইঞ্জিন ইনিশিয়ালাইজেশন
+    // ==========================================
+    window.InventoryState = {
+      slots: { wood: 8, stone: 6, apples: 4, meat: 2, quantum_core: 1 },
+      currentWeight: 14.5
+    };
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1200);
+    camera.position.set(0, 6, 12);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    document.getElementById("gameContainer").appendChild(renderer.domElement);
+
+    // ==========================================
+    // ২. গতিশীল আকাশ, সূর্য, চাঁদ ও আলো
+    // ==========================================
+    const skyFog = new THREE.FogExp2(0x0a1420, 0.008);
+    scene.fog = skyFog;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfff1cf, 1.4);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
+    scene.add(sunLight);
+
+    const moonLight = new THREE.DirectionalLight(0x4a76a8, 0.3);
+    scene.add(moonLight);
+
+    const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffa502 }));
+    const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(4.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xdff9fb }));
+    scene.add(sunMesh);
+    scene.add(moonMesh);
+
+    // ==========================================
+    // ৩. ৩ডি টেরেইন, নদী ও পাহাড়ি উচ্চতা
+    // ==========================================
+    const mapSize = 350;
+    const terrainGeo = new THREE.PlaneGeometry(mapSize, mapSize, 70, 70);
+    terrainGeo.rotateX(-Math.PI / 2);
+
+    const posAttr = terrainGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const vx = posAttr.getX(i);
+      const vz = posAttr.getZ(i);
+
+      // নদী চ্যানেল তৈরি (X = -20 থেকে 20 বরাবর খাদ)
+      const riverDist = Math.abs(vx - 5 * Math.sin(vz * 0.05));
+      if (riverDist < 12) {
+        posAttr.setY(i, -2.5 + (riverDist / 12) * 1.5);
+      } else {
+        // পাহাড় ও টিলা
+        const hill = Math.sin(vx * 0.04) * Math.cos(vz * 0.04) * 6 + Math.sin(vx * 0.09) * 2;
+        posAttr.setY(i, Math.max(0, hill));
+      }
+    }
+    terrainGeo.computeVertexNormals();
+
+    const terrainMat = new THREE.MeshStandardMaterial({ color: 0x1f3621, roughness: 0.85, metalness: 0.1 });
+    const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+    terrain.receiveShadow = true;
+    scene.add(terrain);
+
+    // প্রবহমান নদী (Water Plane)
+    const riverGeo = new THREE.PlaneGeometry(24, mapSize, 10, 40);
+    riverGeo.rotateX(-Math.PI / 2);
+    const riverMat = new THREE.MeshStandardMaterial({
+      color: 0x0abde3, roughness: 0.1, metalness: 0.7, transparent: true, opacity: 0.82
+    });
+    const river = new THREE.Mesh(riverGeo, riverMat);
+    river.position.set(0, -0.6, 0);
+    scene.add(river);
+
+    // ঝর্ণা (Waterfall Head & Particles)
+    const waterfallGeo = new THREE.PlaneGeometry(16, 12);
+    const waterfallMat = new THREE.MeshBasicMaterial({ color: 0x48dbfb, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const waterfall = new THREE.Mesh(waterfallGeo, waterfallMat);
+    waterfall.position.set(0, 3, -110);
+    scene.add(waterfall);
+
+    // ==========================================
+    // ৪. গাছপালা ও ফলের গাছ (Harvestable Fruit Trees)
+    // ==========================================
+    const fruitList = [];
+    const treeTrunkGeo = new THREE.CylinderGeometry(0.35, 0.5, 3.5, 6);
+    const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x4a2f13, roughness: 0.9 });
+    const treeLeavesGeo = new THREE.ConeGeometry(2.4, 4.5, 6);
+    const treeLeavesMat = new THREE.MeshStandardMaterial({ color: 0x1e824c, roughness: 0.7 });
+    const fruitGeo = new THREE.SphereGeometry(0.25, 8, 8);
+    const fruitMat = new THREE.MeshStandardMaterial({ color: 0xff4757, roughness: 0.3 });
+
+    for (let i = 0; i < 45; i++) {
+      const tx = (Math.random() - 0.5) * 260;
+      const tz = (Math.random() - 0.5) * 260;
+      if (Math.abs(tx) < 18) continue; // নদীর ভেতরে যাতে না জন্মায়
+
+      const treeGroup = new THREE.Group();
+      const trunk = new THREE.Mesh(treeTrunkGeo, treeTrunkMat);
+      trunk.position.y = 1.75;
+      trunk.castShadow = true;
+      treeGroup.add(trunk);
+
+      const leaves = new THREE.Mesh(treeLeavesGeo, treeLeavesMat);
+      leaves.position.y = 4.2;
+      leaves.castShadow = true;
+      treeGroup.add(leaves);
+
+      // প্রতি গাছে ২-৩টি লাল ফল
+      if (i % 2 === 0) {
+        for (let f = 0; f < 3; f++) {
+          const apple = new THREE.Mesh(fruitGeo, fruitMat);
+          apple.position.set((Math.random() - 0.5) * 1.8, 3.5 + Math.random() * 1.2, (Math.random() - 0.5) * 1.8);
+          treeGroup.add(apple);
+          fruitList.push(apple);
+        }
+      }
+
+      treeGroup.position.set(tx, 0, tz);
+      scene.add(treeGroup);
+    }
+
+    // ==========================================
+    // ৫. পরিত্যক্ত বাড়ি ও ভাঙা গাড়ি (Ruins & Wreck)
+    // ==========================================
+    // পরিত্যক্ত বাড়ি (Abandoned Cabin)
+    const house = new THREE.Group();
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d, roughness: 0.9 });
+    const wall1 = new THREE.Mesh(new THREE.BoxGeometry(8, 4.5, 0.4), wallMat);
+    wall1.position.set(0, 2.25, -4);
+    const wall2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4.5, 8), wallMat);
+    wall2.position.set(-4, 2.25, 0);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(6.5, 2.8, 4), new THREE.MeshStandardMaterial({ color: 0x222f3e }));
+    roof.position.set(0, 5.5, 0);
+    roof.rotation.y = Math.PI / 4;
+    house.add(wall1); house.add(wall2); house.add(roof);
+    house.position.set(38, 0, -45);
+    scene.add(house);
+
+    // ভাঙা গাড়ি (Broken Wrecked Car)
+    const car = new THREE.Group();
+    const carBody = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.2, 2.2), new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.9 }));
+    carBody.position.y = 0.8;
+    car.add(carBody);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+    const wGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.4, 8);
+    wGeo.rotateZ(Math.PI / 2);
+    const w1 = new THREE.Mesh(wGeo, wheelMat); w1.position.set(1.4, 0.4, 1.1);
+    const w2 = new THREE.Mesh(wGeo, wheelMat); w2.position.set(-1.4, 0.4, -1.1); w2.rotation.y = 0.4; // বাঁকানো চাকা
+    car.add(w1); car.add(w2);
+    car.position.set(-35, 0, 30);
+    car.rotation.y = -0.6;
+    car.rotation.z = 0.08;
+    scene.add(car);
+
+    // ==========================================
+    // ৬. অ্যানাটমিক্যাল অর্গানিক প্লেয়ার অ্যাভাটার (Fine Limbs)
+    // ==========================================
+    const player = new THREE.Group();
+    const skinToneMat = new THREE.MeshStandardMaterial({ color: 0xf5cd79, roughness: 0.6 });
+    const clothMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.7 });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x1e272e, roughness: 0.8 });
+
+    // মাথা (Smooth Head)
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 16), skinToneMat);
+    pHead.position.y = 2.45;
+    player.add(pHead);
+
+    // চোখ ও ভাইজর
+    const pVisor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.12, 0.25), new THREE.MeshStandardMaterial({ color: 0x00ffaa, emissive: 0x00aa77 }));
+    pVisor.position.set(0, 2.46, 0.25);
+    player.add(pVisor);
+
+    // ধড় ও বুক (Tapered Chest/Torso)
+    const pChest = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.35, 1.1, 10), clothMat);
+    pChest.position.y = 1.6;
+    pChest.castShadow = true;
+    player.add(pChest);
+
+    // হাত ও জয়েন্ট (Smooth Anatomical Arms)
+    const armGeo = new THREE.CylinderGeometry(0.12, 0.1, 0.9, 8);
+    const pLeftArm = new THREE.Mesh(armGeo, skinToneMat);
+    pLeftArm.position.set(-0.62, 1.5, 0);
+    const pRightArm = new THREE.Mesh(armGeo, skinToneMat);
+    pRightArm.position.set(0.62, 1.5, 0);
+    player.add(pLeftArm); player.add(pRightArm);
+
+    // পা ও বুট (Legs & Boots)
+    const legGeo = new THREE.CylinderGeometry(0.15, 0.12, 1.05, 8);
+    const pLeftLeg = new THREE.Mesh(legGeo, bootMat);
+    pLeftLeg.position.set(-0.25, 0.6, 0);
+    const pRightLeg = new THREE.Mesh(legGeo, bootMat);
+    pRightLeg.position.set(0.25, 0.6, 0);
+    player.add(pLeftLeg); player.add(pRightLeg);
+
+    player.position.set(0, 0, 10);
+    scene.add(player);
+
+    const playerLimbs = { head: pHead, leftArm: pLeftArm, rightArm: pRightArm, leftLeg: pLeftLeg, rightLeg: pRightLeg, chest: pChest };
+
+    // ==========================================
+    // ৭. জীবন্ত বন্যপ্রাণী (হরিণ ও বুনো শূকর) এবং জম্বি
+    // ==========================================
+    const deerList = [];
+    const pigList = [];
+    const zombieList = [];
+
+    // হরিণ (Deer)
+    const deerMat = new THREE.MeshStandardMaterial({ color: 0xcd6133 });
+    for (let i = 0; i < 4; i++) {
+      const deer = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.8), deerMat);
+      body.position.y = 1.2;
+      const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.8, 0.35), deerMat);
+      neck.position.set(0.7, 1.8, 0);
+      neck.rotation.z = -0.3;
+      deer.add(body); deer.add(neck);
+      deer.position.set(20 + i * 14, 0, -20 - i * 10);
+      scene.add(deer);
+      deerList.push(deer);
+    }
+
+    // বুনো শূকর (Wild Boar)
+    const boarMat = new THREE.MeshStandardMaterial({ color: 0x574b90, roughness: 0.8 });
+    for (let i = 0; i < 3; i++) {
+      const pig = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 0.9), boarMat);
+      body.position.y = 0.5;
+      const snout = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: 0x303952 }));
+      snout.position.set(0.8, 0.5, 0);
+      pig.add(body); pig.add(snout);
+      pig.position.set(-30 - i * 12, 0, -10 + i * 15);
+      scene.add(pig);
+      pigList.push(pig);
+    }
+
+    // জম্বি (Threatening AI Zombies)
+    const zombieMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.7 });
+    for (let i = 0; i < 5; i++) {
+      const zGroup = new THREE.Group();
+      const zBody = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 1.2, 8), zombieMat);
+      zBody.position.y = 1.5;
+      const zHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), new THREE.MeshStandardMaterial({ color: 0x1e824c }));
+      zHead.position.y = 2.3;
+      const zArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), zombieMat);
+      zArm.position.set(0.5, 1.6, 0.4);
+      zArm.rotation.x = Math.PI / 2; // হাত সামনের দিকে বাড়ানো
+      zGroup.add(zBody); zGroup.add(zHead); zGroup.add(zArm);
+      zGroup.position.set((Math.random() - 0.5) * 160, 0, -60 - Math.random() * 50);
+      scene.add(zGroup);
+      zombieList.push({ mesh: zGroup, hp: 45 });
+    }
+
+    // ==========================================
+    // ৮. আবহাওয়া ব্যবস্থা (Rain Weather System)
+    // ==========================================
+    const rainCount = 1200;
+    const rainGeo = new THREE.BufferGeometry();
+    const rainPositions = new Float32Array(rainCount * 3);
+    for (let i = 0; i < rainCount * 3; i += 3) {
+      rainPositions[i] = (Math.random() - 0.5) * 200;
+      rainPositions[i + 1] = Math.random() * 60;
+      rainPositions[i + 2] = (Math.random() - 0.5) * 200;
+    }
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+    const rainMat = new THREE.PointsMaterial({ color: 0x70a1ff, size: 0.28, transparent: true, opacity: 0.0 });
+    const rainSystem = new THREE.Points(rainGeo, rainMat);
+    scene.add(rainSystem);
+
+    let isRaining = false;
+    document.getElementById("btnWeather").onclick = () => {
+      isRaining = !isRaining;
+      rainMat.opacity = isRaining ? 0.75 : 0.0;
+      document.getElementById("weatherTxt").innerText = isRaining ? "STORM RAIN" : "CLEAR";
+      document.getElementById("weatherTxt").style.color = isRaining ? "#70a1ff" : "#00d2d3";
+    };
+
+    // ==========================================
+    // ৯. অন-স্ক্রিন জয়স্টিক ও কাইনেমেটিক্স কন্ট্রোল
+    // ==========================================
+    const joy = { x: 0, y: 0, active: false, walkTime: 0 };
+    const base = document.getElementById("joystickBase");
+    const thumb = document.getElementById("joystickThumb");
+
+    let touchId = null, center = { x: 0, y: 0 };
+    const maxR = 38;
+
+    base.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      touchId = t.identifier;
+      const rect = base.getBoundingClientRect();
+      center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (touchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === touchId) {
+          let dx = t.clientX - center.x;
+          let dy = t.clientY - center.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > maxR) { dx = (dx / dist) * maxR; dy = (dy / dist) * maxR; }
+          thumb.style.transform = `translate(${dx}px, ${dy}px)`;
+          joy.x = dx / maxR; joy.y = dy / maxR;
+          joy.active = dist > 4;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    const resetJoy = () => {
+      touchId = null;
+      thumb.style.transform = `translate(0px, 0px)`;
+      joy.x = 0; joy.y = 0; joy.active = false;
+    };
+    window.addEventListener("touchend", resetJoy);
+    window.addEventListener("touchcancel", resetJoy);
+
+    // ==========================================
+    // ১০. ইন্টারঅ্যাকশন: অ্যাটাক, সংগ্রহ ও ৫ডি শিফট
+    // ==========================================
+    document.getElementById("btnAttack").onclick = () => {
+      playerLimbs.rightArm.rotation.x = -Math.PI / 1.6;
+      setTimeout(() => { playerLimbs.rightArm.rotation.x = 0; }, 200);
+
+      // জম্বিকে আক্রমণ
+      zombieList.forEach(z => {
+        if (player.position.distanceTo(z.mesh.position) < 5.0) {
+          z.hp -= 25;
+          z.mesh.position.z -= 2;
+          if (z.hp <= 0) z.mesh.position.y = -10; // নিহত
+        }
+      });
+    };
+
+    document.getElementById("btnHarvest").onclick = () => {
+      window.InventoryState.slots.apples += 2;
+      window.InventoryState.slots.wood += 2;
+      alert("🍎 Harvested 2x Forest Apples & 2x Wood!");
+    };
+
+    let is5D = false;
+    document.getElementById("btnShift").onclick = () => {
+      is5D = !is5D;
+      document.getElementById("dimVal").innerText = is5D ? "5D ETHEREAL" : "3D REALITY";
+      document.getElementById("dimVal").style.color = is5D ? "#bf55ec" : "#00ffaa";
+      terrainMat.color.setHex(is5D ? 0x2c003e : 0x1f3621);
+    };
+
+    // ==========================================
+    // ১১. গেম ও অ্যানিমেশন লুপ (Eco-Lifecycle)
+    // ==========================================
+    const clock = new THREE.Clock();
+    let dayCycle = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
+
+      // সূর্য ও চাঁদের কক্ষপথ এবং আলোর পরিবর্তন
+      dayCycle += dt * 0.04;
+      const sunX = Math.cos(dayCycle) * 140;
+      const sunY = Math.sin(dayCycle) * 140;
+      sunLight.position.set(sunX, sunY, sunX * 0.5);
+      sunMesh.position.set(sunX, sunY, sunX * 0.5);
+
+      moonLight.position.set(-sunX, -sunY, -sunX * 0.5);
+      moonMesh.position.set(-sunX, -sunY, -sunX * 0.5);
+
+      const isNight = sunY < 0;
+      document.getElementById("cycleTxt").innerText = isNight ? "NIGHT (COLD)" : "DAY";
+      document.getElementById("cycleTxt").style.color = isNight ? "#3867d6" : "#ffd32a";
+      ambientLight.intensity = isNight ? 0.15 : 0.45;
+
+      // নদী প্রবাহ ও ঝর্ণা অ্যানিমেশন
+      river.material.opacity = 0.78 + Math.sin(Date.now() * 0.003) * 0.05;
+      waterfall.position.y = 3 + Math.sin(Date.now() * 0.008) * 0.15;
+
+      // প্লেয়ার মুভমেন্ট ও লিম্ব অ্যানিমেশন
+      if (joy.active) {
+        player.position.x += joy.x * 12 * dt;
+        player.position.z += joy.y * 12 * dt;
+        player.rotation.y = Math.atan2(joy.x, joy.y);
+
+        joy.walkTime += dt * 13;
+        const swing = Math.sin(joy.walkTime) * 0.65;
+        playerLimbs.leftLeg.rotation.x = swing;
+        playerLimbs.rightLeg.rotation.x = -swing;
+        playerLimbs.leftArm.rotation.x = -swing;
+        playerLimbs.rightArm.rotation.x = swing;
+        playerLimbs.chest.position.y = 1.6 + Math.abs(Math.sin(joy.walkTime * 2)) * 0.07;
+      } else {
+        playerLimbs.leftLeg.rotation.x = 0;
+        playerLimbs.rightLeg.rotation.x = 0;
+        playerLimbs.leftArm.rotation.x = 0;
+        playerLimbs.rightArm.rotation.x = 0;
+        playerLimbs.chest.position.y = 1.6;
+      }
+
+      // ক্যামেরা মসৃণ ট্র্যাকিং
+      camera.position.x = player.position.x;
+      camera.position.z = player.position.z + 13;
+      camera.position.y = player.position.y + 6;
+      camera.lookAt(player.position.x, player.position.y + 1.6, player.position.z);
+
+      // বন্যপ্রাণী চলাচল (Wandering Animals)
+      deerList.forEach((d, i) => { d.position.x += Math.sin(Date.now() * 0.001 + i) * 0.03; });
+      pigList.forEach((p, i) => { p.position.z += Math.cos(Date.now() * 0.001 + i) * 0.025; });
+
+      // জম্বি এআই (প্লেয়ারের দিকে তাড়া)
+      zombieList.forEach(z => {
+        if (z.hp > 0 && player.position.distanceTo(z.mesh.position) < 30) {
+          z.mesh.lookAt(player.position.x, 0, player.position.z);
+          z.mesh.translateZ(3.2 * dt);
+        }
+      });
+
+      // বৃষ্টি কণা চলাচল
+      if (isRaining) {
+        const p = rainGeo.attributes.position.array;
+        for (let i = 1; i < rainCount * 3; i += 3) {
+          p[i] -= 45 * dt;
+          if (p[i] < 0) p[i] = 60;
+        }
+        rainGeo.attributes.position.needsUpdate = true;
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ==========================================
+    // ১২. ক্রাফটিং ও ইনভেন্টরি মোডাল নেভিগেশন
+    // ==========================================
+    document.getElementById("btnOpenCraft").onclick = () => { document.getElementById("craftingModal").style.display = "block"; };
+    document.getElementById("btnCloseCraft").onclick = () => { document.getElementById("craftingModal").style.display = "none"; };
+    document.getElementById("btnOpenInv").onclick = () => { document.getElementById("inventoryModal").style.display = "block"; };
+    document.getElementById("btnCloseInv").onclick = () => { document.getElementById("inventoryModal").style.display = "none"; };
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
