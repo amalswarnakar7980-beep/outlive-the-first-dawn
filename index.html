@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Outlive: Deployable Pot & Tent Homestead</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #020704; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+    #gameContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 12px; left: 12px; z-index: 1000;
+      background: rgba(6, 18, 14, 0.92); border: 1px solid #00ffaa;
+      border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 11px;
+      backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0, 255, 170, 0.25);
+    }
+    .bar-bg { background: #12291d; height: 4px; border-radius: 2px; margin: 2px 0 5px 0; width: 130px; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.2s; }
+
+    /* টপ কন্ট্রোল */
+    #topNav { position: fixed; top: 12px; right: 12px; z-index: 1000; display: flex; gap: 8px; }
+    .nav-btn {
+      background: rgba(8, 24, 18, 0.88); border: 1px solid #00ffaa;
+      border-radius: 6px; color: #00ffaa; font-weight: 800; font-size: 11px;
+      padding: 8px 12px; cursor: pointer; backdrop-filter: blur(4px);
+    }
+    .nav-btn:active { transform: scale(0.95); }
+
+    /* জয়স্টিক */
+    #joystickBase {
+      position: fixed; bottom: 28px; left: 28px; width: 114px; height: 114px;
+      background: rgba(8, 22, 16, 0.78); border: 2px solid #00ffaa; border-radius: 50%;
+      z-index: 1000; box-shadow: 0 0 18px rgba(0, 255, 170, 0.35);
+    }
+    #joystickThumb {
+      position: absolute; top: 50%; left: 50%; width: 44px; height: 44px;
+      margin-top: -22px; margin-left: -22px; background: #00ffaa; border-radius: 50%;
+      box-shadow: 0 0 12px #00ffaa; pointer-events: none; transform: translate(0px, 0px);
+    }
+
+    /* ক্যাম্পফায়ার প্রম্পট */
+    #campPrompt {
+      display: none; position: fixed; bottom: 105px; left: 50%; transform: translateX(-50%);
+      z-index: 2000; background: #d35400; border: 2px solid #f39c12;
+      color: #fff; padding: 10px 22px; border-radius: 30px; font-weight: bold; font-size: 13px;
+      cursor: pointer; box-shadow: 0 0 20px rgba(243, 156, 18, 0.8);
+    }
+
+    /* অ্যাকশন বাটন */
+    #actionPad {
+      position: fixed; bottom: 25px; right: 20px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+    }
+    .act-btn {
+      width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25);
+      color: #fff; font-weight: 900; font-size: 11px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.6); text-align: center;
+    }
+    .act-btn:active { transform: scale(0.9); }
+
+    /* মোডাল উইন্ডোজ */
+    .game-modal {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 380px; max-width: 95vw; background: rgba(8, 18, 14, 0.98); border: 2px solid #00ffaa;
+      border-radius: 14px; padding: 16px; color: #fff; z-index: 10005; box-shadow: 0 0 35px rgba(0, 255, 170, 0.35);
+      backdrop-filter: blur(10px);
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a3a2a; padding-bottom: 8px; margin-bottom: 12px; }
+    .close-btn { background: none; border: none; color: #ff4757; font-size: 20px; font-weight: bold; cursor: pointer; }
+
+    .gear-card {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid #1f4a33; border-radius: 8px;
+      padding: 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+
+    /* ৩-স্লট ম্যাট্রিক্স */
+    .slot-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 8px; }
+    .station-slot {
+      flex: 1; height: 75px; background: rgba(255,255,255,0.04); border: 2px dashed #2ecc71;
+      border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 10px; text-align: center; padding: 4px;
+    }
+    .slot-active { border-style: solid; background: rgba(46, 204, 113, 0.12); }
+    .slot-label { font-weight: 800; color: #00ffaa; margin-bottom: 3px; }
+    .slot-val { font-size: 11px; font-weight: bold; color: #fff; }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="gameContainer"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div style="color: #00ffaa; font-weight: 800; margin-bottom: 3px;">🏕️ OUTLIVE HOMESTEAD</div>
+    <div>HP: <span id="hpVal">100</span>% | THIRST: <span id="thiVal">100</span>%</div>
+    <div class="bar-bg"><div id="hpBar" class="bar-fill" style="background: #ff4757; width: 100%;"></div></div>
+    <div>FLASK (PURIFIED): <b id="flaskTxt" style="color: #00cec9;">5/5</b> 🧴</div>
+    <div>POT STATUS: <b id="potStateTxt" style="color: #f1c40f;">PACKED IN BAG</b> 🫖</div>
+    <div>TENT: <b id="tentGearStatus" style="color: #f1c40f;">PACKED</b> | WOOD: <b id="invWood">6</b> 🪵</div>
+  </div>
+
+  <div id="topNav">
+    <button class="nav-btn" id="btnOpenGear">🎒 GEAR & STORAGE</button>
+  </div>
+
+  <div id="joystickBase"><div id="joystickThumb"></div></div>
+
+  <!-- ক্যাম্পফায়ারের কাছে এলে প্রম্পট -->
+  <div id="campPrompt">🔥 OPEN COOKING & PURIFIER FORGE</div>
+
+  <div id="actionPad">
+    <div class="action-row">
+      <button class="act-btn" id="btnWaterAction" style="background: #0984e3; border-color: #74b9ff;">💧 DRINK</button>
+    </div>
+  </div>
+
+  <!-- গিয়ার মোডাল (টেন্ট ও পট ওপেন/ক্লোজ) -->
+  <div class="game-modal" id="gearModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">SURVIVAL GEAR INVENTORY</span>
+      <button class="close-btn" id="btnCloseGear">✕</button>
+    </div>
+
+    <!-- পট ওপেন/ক্লোজ কার্ড -->
+    <div class="gear-card">
+      <div>
+        <div style="font-weight: bold; font-size: 12px; color: #fff;">🫖 Metal Cooking Pot</div>
+        <div style="font-size: 10px; color: #a4b0be;" id="potCardDesc">Packed in bag. Mount on campfire to open.</div>
+      </div>
+      <button id="btnTogglePot" style="background: #00ffaa; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000;">
+        DEPLOY (OPEN)
+      </button>
+    </div>
+
+    <!-- টেন্ট ওপেন/ক্লোজ কার্ড -->
+    <div class="gear-card">
+      <div>
+        <div style="font-weight: bold; font-size: 12px; color: #fff;">⛺ Expedition Tent</div>
+        <div style="font-size: 10px; color: #a4b0be;">Rest cabin & weather shield</div>
+      </div>
+      <button id="btnToggleTent" style="background: #00ffaa; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000;">
+        DEPLOY (OPEN)
+      </button>
+    </div>
+
+    <!-- ফ্লাস্ক কার্ড -->
+    <div class="gear-card">
+      <div>
+        <div style="font-weight: bold; font-size: 12px; color: #fff;">🧴 5-Charge Canteen Flask</div>
+        <div style="font-size: 10px; color: #a4b0be;">Refill with boiled pure water</div>
+      </div>
+      <div id="gearFlaskCount" style="font-weight: bold; color: #00cec9; font-size: 13px;">5/5</div>
+    </div>
+  </div>
+
+  <!-- ৩-স্লট ক্যাম্পফায়ার মোডাল -->
+  <div class="game-modal" id="campModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">CAMPFIRE FORGE (3-SLOT MATRIX)</span>
+      <button class="close-btn" id="btnCloseCamp">✕</button>
+    </div>
+
+    <div class="slot-row">
+      <!-- স্লট ১: মেটাল পট স্ট্যাটাস -->
+      <div class="station-slot" id="slot1">
+        <div class="slot-label">SLOT 1 (POT)</div>
+        <div style="font-size: 16px;">🫖</div>
+        <div class="slot-val" id="slot1Val">Not Mounted</div>
+      </div>
+      <!-- স্লট ২: খাদ্য বা কাঁচা জল -->
+      <div class="station-slot slot-active" id="slot2">
+        <div class="slot-label">SLOT 2 (INPUT)</div>
+        <div style="font-size: 16px;" id="slot2Icon">❓</div>
+        <div class="slot-val" id="slot2Val">Select Input</div>
+      </div>
+      <!-- স্লট ৩: কাঠ -->
+      <div class="station-slot slot-active" id="slot3">
+        <div class="slot-label">SLOT 3 (FUEL)</div>
+        <div style="font-size: 16px;">🪵</div>
+        <div class="slot-val" id="slot3Val">1x Wood Ready</div>
+      </div>
+    </div>
+
+    <div style="font-size: 10px; color: #a4b0be; margin-bottom: 6px;">SELECT INGREDIENT FOR SLOT 2:</div>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <button id="btnSetWater" class="nav-btn" style="flex: 1;">💧 Raw Water</button>
+      <button id="btnSetMeat" class="nav-btn" style="flex: 1;">🥩 Raw Meat</button>
+    </div>
+
+    <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid #1f4a33; margin-bottom: 12px; text-align: center;">
+      <div style="font-size: 10px; color: #a4b0be;">RECIPE OUTCOME:</div>
+      <div id="recipeOutputTxt" style="font-size: 12px; font-weight: 800; color: #f1c40f; margin-top: 4px;">Mount pot and choose ingredient</div>
+    </div>
+
+    <button id="btnProcessRecipe" style="width: 100%; background: #27ae60; border: none; padding: 12px; border-radius: 8px; color: #fff; font-weight: 800; cursor: pointer; font-size: 13px;">
+      🔥 IGNITE & PURIFY / COOK
+    </button>
+  </div>
+
+  <script>
+    // ========================================================
+    // ১. গাণিতিক টেরেইন
+    // ========================================================
+    function getTerrainHeight(x, z) {
+      const riverDist = Math.abs(x - 7 * Math.sin(z * 0.04));
+      if (riverDist < 15) return -2.8 + (riverDist / 15) * 1.6;
+      return Math.max(0, Math.sin(x * 0.03) * Math.cos(z * 0.03) * 8 + Math.sin(x * 0.075) * 2.5);
+    }
+
+    // ========================================================
+    // ২. থ্রি.জেএস ৩ডি সিন
+    // ========================================================
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    document.getElementById("gameContainer").appendChild(renderer.domElement);
+
+    scene.fog = new THREE.FogExp2(0x0a1410, 0.007);
+    scene.add(new THREE.AmbientLight(0xd4edda, 0.5));
+
+    const sun = new THREE.DirectionalLight(0xfff4d6, 0.9);
+    sun.position.set(50, 80, 30);
+    scene.add(sun);
+
+    // টেরেইন
+    const mapSize = 340;
+    const terrainGeo = new THREE.PlaneGeometry(mapSize, mapSize, 50, 50);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const posAttr = terrainGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      posAttr.setY(i, getTerrainHeight(posAttr.getX(i), posAttr.getZ(i)));
+    }
+    terrainGeo.computeVertexNormals();
+    const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ color: 0x194d25, roughness: 0.85 }));
+    scene.add(terrain);
+
+    // নদী
+    const river = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, mapSize),
+      new THREE.MeshStandardMaterial({ color: 0x0abde3, roughness: 0.1, metalness: 0.7, transparent: true, opacity: 0.85 })
+    );
+    river.rotation.x = -Math.PI / 2;
+    river.position.set(0, -0.6, 0);
+    scene.add(river);
+
+    // ক্যাম্পফায়ার
+    const campfire = new THREE.Group();
+    const firePit = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0x3d3d3d }));
+    campfire.add(firePit);
+
+    // ৩ডি মেটাল পট (ওপেন/ক্লোজ যোগ্য ৩ডি মডেল)
+    const potGroup = new THREE.Group();
+    const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.32, 0.42, 8), new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.85 }));
+    const potLid = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.08, 8), new THREE.MeshStandardMaterial({ color: 0x1a252f, metalness: 0.9 }));
+    potLid.position.y = 0.23;
+    potGroup.add(potBody); potGroup.add(potLid);
+    potGroup.position.y = 0.4;
+    potGroup.visible = false; // শুরুতে ব্যাগে ক্লোজ থাকবে
+    campfire.add(potGroup);
+
+    const fireLight = new THREE.PointLight(0xff6b00, 2.4, 20);
+    fireLight.position.set(0, 0.8, 0);
+    campfire.add(fireLight);
+
+    campfire.position.set(4.0, getTerrainHeight(4.0, 3), 3);
+    scene.add(campfire);
+
+    // আউটডোর টেন্ট
+    const outdoorTent = new THREE.Group();
+    const outerCanvas = new THREE.Mesh(new THREE.ConeGeometry(3.2, 3.4, 4), new THREE.MeshStandardMaterial({ color: 0x16a085, roughness: 0.8 }));
+    outerCanvas.position.y = 1.7; outerCanvas.rotation.y = Math.PI / 4;
+    outdoorTent.add(outerCanvas);
+    outdoorTent.visible = false;
+    scene.add(outdoorTent);
+
+    // ========================================================
+    // ৩. গেম স্টেট ও গিয়ার ম্যানেজমেন্ট
+    // ========================================================
+    let inventory = {
+      wood: 6,
+      rawMeat: 4,
+      hasRawWaterInHand: false,
+      flaskCharges: 5,
+      thirst: 100,
+      hp: 100
+    };
+
+    let isPotOpen = false;   // পট ডিপ্লয়/ওপেন কি না
+    let isTentOpen = false;  // টেন্ট ডিপ্লয়/ওপেন কি না
+    let selectedSlot2 = null;
+
+    function checkNearRiver() {
+      const riverDist = Math.abs(player.position.x - 7 * Math.sin(player.position.z * 0.04));
+      return riverDist < 16;
+    }
+
+    function checkNearCampfire() {
+      return player.position.distanceTo(campfire.position) < 4.0;
+    }
+
+    function updateUI() {
+      document.getElementById("hpVal").innerText = Math.round(inventory.hp);
+      document.getElementById("hpBar").style.width = inventory.hp + "%";
+      document.getElementById("thiVal").innerText = Math.round(inventory.thirst);
+      document.getElementById("flaskTxt").innerText = inventory.flaskCharges === 0 ? "EMPTY (0/5)" : `${inventory.flaskCharges}/5`;
+      document.getElementById("gearFlaskCount").innerText = `${inventory.flaskCharges}/5`;
+      document.getElementById("invWood").innerText = inventory.wood;
+
+      // পট স্ট্যাটাস
+      const potTxt = document.getElementById("potStateTxt");
+      if (isPotOpen) {
+        potTxt.innerText = "OPEN ON CAMPFIRE 🫖";
+        potTxt.style.color = "#2ecc71";
+      } else {
+        potTxt.innerText = "PACKED IN BAG 🎒";
+        potTxt.style.color = "#f1c40f";
+      }
+
+      // বাটন টেক্সট লজিক
+      const nearRiver = checkNearRiver();
+      const btnWater = document.getElementById("btnWaterAction");
+      if (nearRiver && !inventory.hasRawWaterInHand) {
+        btnWater.innerText = "🫖 SCOOP WATER";
+        btnWater.style.background = "#16a085";
+      } else {
+        btnWater.innerText = "💧 DRINK";
+        btnWater.style.background = "#0984e3";
+      }
+
+      // ক্যাম্পফায়ার স্লট ১ আপডেট
+      const s1 = document.getElementById("slot1");
+      const s1Val = document.getElementById("slot1Val");
+      if (isPotOpen) {
+        s1.classList.add("slot-active");
+        s1Val.innerText = "Pot Open & Mounted";
+        s1Val.style.color = "#2ecc71";
+      } else {
+        s1.classList.remove("slot-active");
+        s1Val.innerText = "CLOSED / NOT MOUNTED";
+        s1Val.style.color = "#e74c3c";
+      }
+    }
+
+    // ========================================================
+    // ৪. পট ওপেন/ক্লোজ (DEPLOY & PACK-UP)
+    // ========================================================
+    const btnTogglePot = document.getElementById("btnTogglePot");
+    btnTogglePot.onclick = () => {
+      if (!isPotOpen) {
+        // পট ওপেন করা (ক্যাম্পফায়ারের কাছে থাকতে হবে)
+        if (!checkNearCampfire()) {
+          alert("⚠️ You must be near the Campfire to mount and open the Metal Pot!");
+          return;
+        }
+        isPotOpen = true;
+        potGroup.visible = true;
+        potLid.position.y = 0.45; // ঢাকনা খুলে উঁচুতে রাখা
+        potLid.rotation.z = 0.3;
+        btnTogglePot.innerText = "PACK UP (CLOSE)";
+        btnTogglePot.style.background = "#e74c3c";
+        btnTogglePot.style.color = "#fff";
+        document.getElementById("potCardDesc").innerText = "Mounted on campfire and open for boiling.";
+        updateUI();
+        alert("🫖 Metal Pot Mounted on Campfire & Lid Opened!");
+      } else {
+        // পট ক্লোজ করা (গুটিয়ে ব্যাগে ভরা)
+        isPotOpen = false;
+        potGroup.visible = false;
+        potLid.position.y = 0.23;
+        potLid.rotation.z = 0;
+        btnTogglePot.innerText = "DEPLOY (OPEN)";
+        btnTogglePot.style.background = "#00ffaa";
+        btnTogglePot.style.color = "#000";
+        document.getElementById("potCardDesc").innerText = "Packed in bag. Mount on campfire to open.";
+        updateUI();
+        alert("🎒 Metal Pot Closed with lid and stored in your Gear Bag!");
+      }
+      document.getElementById("gearModal").style.display = "none";
+    };
+
+    // টেন্ট ওপেন/ক্লোজ
+    const btnToggleTent = document.getElementById("btnToggleTent");
+    btnToggleTent.onclick = () => {
+      if (!isTentOpen) {
+        outdoorTent.position.set(player.position.x + 3.0, getTerrainHeight(player.position.x + 3.0, player.position.z), player.position.z);
+        outdoorTent.visible = true;
+        isTentOpen = true;
+        btnToggleTent.innerText = "PACK UP (CLOSE)";
+        btnToggleTent.style.background = "#e74c3c";
+        btnToggleTent.style.color = "#fff";
+        document.getElementById("tentGearStatus").innerText = "OPEN ON FIELD";
+        document.getElementById("tentGearStatus").style.color = "#2ecc71";
+        alert("⛺ Tent Deployed and Opened!");
+      } else {
+        outdoorTent.visible = false;
+        isTentOpen = false;
+        btnToggleTent.innerText = "DEPLOY (OPEN)";
+        btnToggleTent.style.background = "#00ffaa";
+        btnToggleTent.style.color = "#000";
+        document.getElementById("tentGearStatus").innerText = "PACKED";
+        document.getElementById("tentGearStatus").style.color = "#f1c40f";
+        alert("🎒 Tent Folded (Closed) into Bag!");
+      }
+      document.getElementById("gearModal").style.display = "none";
+    };
+
+    // ওয়াটার বাটন অ্যাকশন
+    document.getElementById("btnWaterAction").onclick = () => {
+      const nearRiver = checkNearRiver();
+
+      if (nearRiver && !inventory.hasRawWaterInHand) {
+        inventory.hasRawWaterInHand = true;
+        updateUI();
+        alert("🫖 Scooped raw river water! Open your Pot on the Campfire to boil it.");
+        return;
+      }
+
+      if (inventory.flaskCharges > 0) {
+        inventory.flaskCharges--;
+        inventory.thirst = Math.min(100, inventory.thirst + 25);
+        updateUI();
+        alert(`💧 Took a drink of pure water! (${inventory.flaskCharges}/5 remaining)`);
+      } else {
+        alert("❌ Flask is EMPTY! Boil river water in the pot to refill.");
+      }
+    };
+
+    // ক্যাম্পফায়ার ৩-স্লট সিলেকশন
+    document.getElementById("btnSetWater").onclick = () => {
+      selectedSlot2 = 'WATER';
+      document.getElementById("slot2Icon").innerText = "💧";
+      document.getElementById("slot2Val").innerText = "Raw River Water";
+      document.getElementById("recipeOutputTxt").innerText = "Open Pot + Raw Water + 1x Wood ➔ 5x PURE BOILED WATER ✨";
+      document.getElementById("recipeOutputTxt").style.color = "#00d2d3";
+    };
+
+    document.getElementById("btnSetMeat").onclick = () => {
+      selectedSlot2 = 'MEAT';
+      document.getElementById("slot2Icon").innerText = "🥩";
+      document.getElementById("slot2Val").innerText = "Raw Meat";
+      document.getElementById("recipeOutputTxt").innerText = "Open Pot + Raw Meat + 1x Wood ➔ DELICIOUS COOKED STEAK 🍖";
+      document.getElementById("recipeOutputTxt").style.color = "#2ecc71";
+    };
+
+    // প্রসেসিং রান/কুক
+    document.getElementById("btnProcessRecipe").onclick = () => {
+      if (!isPotOpen) {
+        alert("❌ Metal Pot is CLOSED/PACKED! Go to Backpack and press 'DEPLOY (OPEN)' first.");
+        return;
+      }
+      if (inventory.wood < 1) {
+        alert("❌ Need at least 1x Wood in Slot 3 for fire!");
+        return;
+      }
+      if (!selectedSlot2) {
+        alert("⚠️ Select either Raw Water or Raw Meat for Slot 2!");
+        return;
+      }
+
+      if (selectedSlot2 === 'WATER') {
+        if (!inventory.hasRawWaterInHand) {
+          alert("❌ You have not scooped any river water! Go scoop at the river first.");
+          return;
+        }
+        inventory.wood--;
+        inventory.hasRawWaterInHand = false;
+        inventory.flaskCharges = 5;
+        updateUI();
+        alert("🔥 Water Boiled in Open Pot!\n✨ 100°C reached. Fresh purified water filled into your Flask (5/5 full)!");
+        document.getElementById("campModal").style.display = "none";
+      } else if (selectedSlot2 === 'MEAT') {
+        if (inventory.rawMeat < 1) {
+          alert("❌ No raw meat left in inventory!");
+          return;
+        }
+        inventory.wood--;
+        inventory.rawMeat--;
+        inventory.hp = Math.min(100, inventory.hp + 35);
+        inventory.thirst = Math.min(100, inventory.thirst + 10);
+        updateUI();
+        alert("🍖 Sizzling Steak Cooked in Pot!\n✨ Delicious & Healthy: +35 HP Restored!");
+        document.getElementById("campModal").style.display = "none";
+      }
+    };
+
+    // মোডাল বাইন্ডিং
+    document.getElementById("campPrompt").onclick = () => {
+      document.getElementById("campModal").style.display = "block";
+      updateUI();
+    };
+    document.getElementById("btnCloseCamp").onclick = () => document.getElementById("campModal").style.display = "none";
+    document.getElementById("btnOpenGear").onclick = () => document.getElementById("gearModal").style.display = "block";
+    document.getElementById("btnCloseGear").onclick = () => document.getElementById("gearModal").style.display = "none";
+
+    // ========================================================
+    // ৫. প্লেয়ার অবতার ও লোকোমোশন
+    // ========================================================
+    const player = new THREE.Group();
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf3c59a });
+    const clothMat = new THREE.MeshStandardMaterial({ color: 0x243342 });
+
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), skinMat);
+    pHead.position.y = 2.35; player.add(pHead);
+    const pChest = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.34, 1.0, 8), clothMat);
+    pChest.position.y = 1.6; player.add(pChest);
+
+    const pLeftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), skinMat);
+    pLeftArm.position.set(-0.55, 1.5, 0);
+    const pRightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), skinMat);
+    pRightArm.position.set(0.55, 1.5, 0);
+    player.add(pLeftArm); player.add(pRightArm);
+
+    const pLeftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 1.1, 6), clothMat);
+    pLeftLeg.position.set(-0.22, 0.6, 0);
+    const pRightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 1.1, 6), clothMat);
+    pRightLeg.position.set(0.22, 0.6, 0);
+    player.add(pLeftLeg); player.add(pRightLeg);
+
+    player.position.set(0, getTerrainHeight(0, 4), 4);
+    scene.add(player);
+
+    const limbs = { leftArm: pLeftArm, rightArm: pRightArm, leftLeg: pLeftLeg, rightLeg: pRightLeg };
+
+    // ক্যামেরা ও জয়স্টিক
+    const cameraLook = { yaw: 0, pitch: 0.35, distance: 13.0 };
+    let lookId = null, lastX = 0, lastY = 0;
+
+    window.addEventListener("touchstart", (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const target = document.elementFromPoint(t.clientX, t.clientY);
+        const isUI = target && (target.closest("#joystickBase") || target.closest("#actionPad") || target.closest("#topNav") || target.closest("#hud") || target.closest("#campPrompt") || target.closest(".game-modal"));
+        if (!isUI && lookId === null) {
+          lookId = t.identifier;
+          lastX = t.clientX; lastY = t.clientY;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (lookId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === lookId) {
+          cameraLook.yaw -= (t.clientX - lastX) * 0.0075;
+          cameraLook.pitch = Math.max(0.08, Math.min(1.2, cameraLook.pitch + (t.clientY - lastY) * 0.005));
+          lastX = t.clientX; lastY = t.clientY;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    const endLook = (e) => {
+      if (lookId !== null) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === lookId) { lookId = null; break; }
+        }
+      }
+    };
+    window.addEventListener("touchend", endLook);
+    window.addEventListener("touchcancel", endLook);
+
+    const joyState = { x: 0, y: 0, active: false, walkTime: 0 };
+    const joyBase = document.getElementById("joystickBase");
+    const joyThumb = document.getElementById("joystickThumb");
+    let joyTouchId = null, joyCenter = { x: 0, y: 0 };
+
+    joyBase.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      joyTouchId = t.identifier;
+      const rect = joyBase.getBoundingClientRect();
+      joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (joyTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === joyTouchId) {
+          let dx = t.clientX - joyCenter.x;
+          let dy = t.clientY - joyCenter.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 38) { dx = (dx / dist) * 38; dy = (dy / dist) * 38; }
+          joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+          joyState.x = dx / 38; joyState.y = dy / 38;
+          joyState.active = dist > 4;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    const endJoy = () => {
+      joyTouchId = null;
+      joyThumb.style.transform = "translate(0px, 0px)";
+      joyState.x = 0; joyState.y = 0; joyState.active = false;
+    };
+    window.addEventListener("touchend", endJoy);
+    window.addEventListener("touchcancel", endJoy);
+
+    // ========================================================
+    // ৬. মাস্টার গেম লুপ
+    // ========================================================
+    const clock = new THREE.Clock();
+
+    function gameLoop() {
+      requestAnimationFrame(gameLoop);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      inventory.thirst = Math.max(0, inventory.thirst - dt * 0.4);
+      updateUI();
+
+      if (joyState.active) {
+        const cosY = Math.cos(cameraLook.yaw);
+        const sinY = Math.sin(cameraLook.yaw);
+        const mx = (joyState.x * cosY - joyState.y * sinY);
+        const mz = (joyState.x * sinY + joyState.y * cosY);
+
+        player.position.x += mx * 11 * dt;
+        player.position.z += mz * 11 * dt;
+        player.rotation.y = Math.atan2(mx, mz);
+
+        joyState.walkTime += dt * 13;
+        const swing = Math.sin(joyState.walkTime) * 0.65;
+        limbs.leftLeg.rotation.x = swing;
+        limbs.rightLeg.rotation.x = -swing;
+        limbs.leftArm.rotation.x = -swing;
+        limbs.rightArm.rotation.x = swing;
+      } else {
+        limbs.leftLeg.rotation.x = 0;
+        limbs.rightLeg.rotation.x = 0;
+        limbs.leftArm.rotation.x = 0;
+        limbs.rightArm.rotation.x = 0;
+      }
+
+      player.position.y = THREE.MathUtils.lerp(player.position.y, getTerrainHeight(player.position.x, player.position.z), 0.25);
+
+      // ক্যাম্পফায়ার প্রক্সিমিটি
+      const distToCamp = player.position.distanceTo(campfire.position);
+      document.getElementById("campPrompt").style.display = distToCamp < 3.8 ? "block" : "none";
+
+      // ক্যামেরা ফলো
+      const hDist = cameraLook.distance * Math.cos(cameraLook.pitch);
+      const vDist = cameraLook.distance * Math.sin(cameraLook.pitch) + 3.0;
+      camera.position.x = player.position.x - Math.sin(cameraLook.yaw) * hDist;
+      camera.position.z = player.position.z - Math.cos(cameraLook.yaw) * hDist;
+      camera.position.y = player.position.y + vDist;
+      camera.lookAt(player.position.x, player.position.y + 1.6, player.position.z);
+
+      renderer.render(scene, camera);
+    }
+    gameLoop();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
