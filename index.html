@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Outlive: Advanced Weapon Slot & Dynamic Swipe Architecture</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #010805; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+    #gameContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+    #landscapeWarning {
+      display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #020704; z-index: 99999; flex-direction: column;
+      align-items: center; justify-content: center; color: #00ffaa; text-align: center;
+      font-weight: 800; font-size: 14px;
+    }
+    @media screen and (orientation: portrait) {
+      #landscapeWarning { display: flex !important; }
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 8px; left: 8px; z-index: 1000;
+      background: rgba(6, 18, 14, 0.92); border: 1px solid #00ffaa;
+      border-radius: 8px; padding: 6px 10px; color: #fff; font-size: 10px;
+      backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0, 255, 170, 0.25);
+    }
+    .bar-bg { background: #12291d; height: 4px; border-radius: 2px; margin: 2px 0 4px 0; width: 120px; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.2s; }
+
+    #saveToast {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(10, 35, 24, 0.95); border: 1px solid #00ffaa;
+      color: #00ffaa; font-weight: 800; font-size: 10px; padding: 5px 12px;
+      border-radius: 20px; z-index: 3000; display: none;
+      box-shadow: 0 0 15px rgba(0, 255, 170, 0.4);
+    }
+
+    #topNav {
+      position: fixed; top: 8px; right: 8px; z-index: 2000;
+      display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;
+    }
+    .nav-btn {
+      background: rgba(8, 24, 18, 0.88); border: 1px solid #00ffaa;
+      border-radius: 6px; color: #00ffaa; font-weight: 800; font-size: 9px;
+      padding: 5px 8px; cursor: pointer; backdrop-filter: blur(4px);
+    }
+    .nav-btn:active { transform: scale(0.95); }
+
+    #crosshairOverlay {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      pointer-events: none; z-index: 2500;
+    }
+    .crosshair-line { position: absolute; background: rgba(0, 255, 170, 0.85); }
+
+    .action-prompt {
+      display: none; position: fixed; left: 50%; transform: translateX(-50%);
+      z-index: 2000; color: #fff; padding: 8px 16px; border-radius: 30px;
+      font-weight: bold; font-size: 11px; cursor: pointer; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+    #campPrompt { bottom: 100px; background: #d35400; border: 2px solid #f39c12; }
+    #doorPrompt { bottom: 65px; background: #16a085; border: 2px solid #1abc9c; }
+    #thornFruitPrompt { bottom: 135px; background: #8e44ad; border: 2px solid #e056fd; }
+
+    /* জয়স্টিক */
+    #hud_joystick {
+      position: fixed; bottom: 18px; left: 18px; width: 110px; height: 110px;
+      background: radial-gradient(circle, rgba(14,40,28,0.7) 0%, rgba(5,18,12,0.85) 100%);
+      border: 2px solid rgba(0, 255, 170, 0.5); border-radius: 50%; z-index: 1000;
+    }
+    #joyCenterBall {
+      position: absolute; width: 16px; height: 16px; background: rgba(0, 255, 170, 0.4);
+      border-radius: 50%; top: 50%; left: 50%; margin-top: -8px; margin-left: -8px;
+      pointer-events: none;
+    }
+    #joyThumb {
+      position: absolute; width: 44px; height: 44px;
+      background: radial-gradient(circle at 30% 30%, #55efc4, #00b894);
+      border: 2px solid #00ffaa; border-radius: 50%;
+      box-shadow: 0 0 14px #00ffaa; pointer-events: none;
+      top: 50%; left: 50%; margin-top: -22px; margin-left: -22px;
+      transform: translate(0px, 0px);
+    }
+
+    .hud-element {
+      position: fixed; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; color: #fff; font-weight: 900;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6); touch-action: none;
+    }
+    .hud-element:active { filter: brightness(1.2); }
+
+    /* মোডাল উইন্ডোজ */
+    .game-modal {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 480px; max-width: 95vw; background: rgba(5, 16, 12, 0.98); border: 1.5px solid #00ffaa;
+      border-radius: 12px; padding: 14px; color: #fff; z-index: 10005; box-shadow: 0 0 35px rgba(0, 255, 170, 0.35);
+      backdrop-filter: blur(10px); max-height: 90vh; overflow-y: auto;
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a3a2a; padding-bottom: 6px; margin-bottom: 8px; }
+    .close-btn { background: none; border: none; color: #ff4757; font-size: 18px; font-weight: bold; cursor: pointer; }
+
+    .sub-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+    .sub-tab-btn {
+      flex: 1; padding: 5px 0; background: rgba(255,255,255,0.06); border: 1px solid #1a422e;
+      color: #7ab896; font-size: 9px; font-weight: bold; border-radius: 6px; cursor: pointer;
+    }
+    .sub-tab-btn.active { background: #00ffaa; color: #000; border-color: #00ffaa; }
+
+    .gear-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .gear-slot-box {
+      background: rgba(255, 255, 255, 0.04); border: 1px solid #1f4a33; border-radius: 6px;
+      padding: 6px; display: flex; justify-content: space-between; align-items: center;
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="landscapeWarning">
+    <div style="font-size: 32px; margin-bottom: 10px;">🔄</div>
+    <div>PLEASE ROTATE YOUR DEVICE TO LANDSCAPE MODE</div>
+  </div>
+
+  <div id="gameContainer"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div style="color: #00ffaa; font-weight: 800; margin-bottom: 2px;">🏕️ OUTLIVE SURVIVAL & HARVEST</div>
+    <div>SLOT: <b id="activeSlotCategoryTxt" style="color: #00cec9;">PRIMARY</b> | ACTIVE: <b id="activeWeaponTxt" style="color: #e74c3c;">AR RIFLE</b></div>
+    <div>FRUITS: <b id="fruitTxt" style="color: #ff4757;">0</b> 🍓 | SAMPLES: <b id="sampleTxt" style="color: #a29bfe;">0</b> 🧪 | GRASS: <b id="grassTxt" style="color: #55efc4;">0</b> 🌿</div>
+    <div>HP: <span id="hpVal">100</span>% | THIRST: <span id="thiVal">100</span>%</div>
+    <div class="bar-bg"><div id="hpBar" class="bar-fill" style="background: #ff4757; width: 100%;"></div></div>
+    <div>HUNGER: <span id="hunVal">100</span>% | CREDITS: <b id="creditsVal" style="color: #f1c40f;">$0</b></div>
+    <div class="bar-bg"><div id="hunBar" class="bar-fill" style="background: #f39c12; width: 100%;"></div></div>
+  </div>
+
+  <div id="saveToast">💾 MILESTONE AUTO-SAVED</div>
+
+  <div id="crosshairOverlay">
+    <div class="crosshair-line" style="width: 20px; height: 2px; top: -1px; left: -26px;"></div>
+    <div class="crosshair-line" style="width: 20px; height: 2px; top: -1px; left: 6px;"></div>
+    <div class="crosshair-line" style="width: 2px; height: 20px; top: -26px; left: -1px;"></div>
+    <div class="crosshair-line" style="width: 2px; height: 20px; top: 6px; left: -1px;"></div>
+    <div style="width: 4px; height: 4px; background: #ff4757; border-radius: 50%; margin: -2px 0 0 -2px;"></div>
+  </div>
+
+  <!-- টপ নেভিগেশন বার -->
+  <div id="topNav">
+    <button class="nav-btn" id="btnOpenBag">🎒 BACKPACK</button>
+    <button class="nav-btn" id="btnOpenLoadout">⚔️ WEAPON SLOTS</button>
+    <button class="nav-btn" id="btnOpenMarket" style="background: #f39c12; color: #000;">💰 TRADER</button>
+    <button class="nav-btn" id="btnOpenCraft">🔨 CRAFT</button>
+    <button class="nav-btn" id="btnEatFruit" style="background: #e84393; color: #fff;">🍓 EAT FRUIT</button>
+  </div>
+
+  <div id="campPrompt" class="action-prompt">🔥 OPEN COOKING & PURIFIER FORGE</div>
+  <div id="doorPrompt" class="action-prompt">🚪 EXIT TO WILDERNESS</div>
+  <div id="thornFruitPrompt" class="action-prompt">🍓 PICK WILD FRUITS (THORN BUSH)</div>
+
+  <!-- জয়স্টিক -->
+  <div id="hud_joystick">
+    <div id="joyCenterBall"></div>
+    <div id="joyThumb"></div>
+  </div>
+
+  <!-- ডাইনামিক অ্যাকশন বাটন (নির্বাচিত অস্ত্রের সাথে স্বয়ংক্রিয়ভাবে কানেক্টেড) -->
+  <div id="hud_attack" class="hud-element" style="bottom: 20px; right: 20px; width: 62px; height: 62px; background: #c0392b; border: 2px solid #e74c3c; font-size: 11px;">
+    🔥 SHOOT
+  </div>
+
+  <!-- অটো-সোয়াইপ / সুইচ বাটন -->
+  <div id="hud_swipe" class="hud-element" style="bottom: 90px; right: 20px; width: 48px; height: 48px; background: #27ae60; border: 2px solid #2ecc71; font-size: 9px; text-align: center;">
+    🔄 SWIP
+  </div>
+
+  <!-- হান্টিং নাইফ বাটন -->
+  <div id="hud_knife" class="hud-element" style="bottom: 20px; right: 90px; width: 50px; height: 50px; background: #8e44ad; border: 2px solid #9b59b6; font-size: 10px;">
+    🔪 KNIFE
+  </div>
+
+  <!-- স্কোপ এইম -->
+  <div id="hud_aim" class="hud-element" style="top: 20px; right: 80px; width: 48px; height: 48px; background: #34495e; border: 2px solid #5dade2; font-size: 10px;">
+    🎯 AIM
+  </div>
+
+  <div id="hud_water" class="hud-element" style="bottom: 90px; right: 75px; width: 44px; height: 44px; background: #0984e3; border: 2px solid #74b9ff; font-size: 9px;">
+    💧 DRINK
+  </div>
+
+  <!-- ১. ব্যাকপ্যাক মোডাল -->
+  <div class="game-modal" id="backpackModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">NEURAL BACKPACK STORAGE</span>
+      <button class="close-btn" id="btnCloseBag">✕</button>
+    </div>
+    <div class="sub-tabs">
+      <button class="sub-tab-btn active" id="tabRes" onclick="switchBagTab('resources')">📦 RESOURCES</button>
+      <button class="sub-tab-btn" id="tabGearAttach" onclick="switchBagTab('gear')">🎽 GEAR & ATTACHMENTS</button>
+    </div>
+
+    <div id="secResources">
+      <div style="font-size: 10px; font-weight: bold; color: #7ab896; margin: 4px 0;">🪵 NORMAL RESOURCES:</div>
+      <div id="normalResGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px;"></div>
+      <div style="font-size: 10px; font-weight: bold; color: #f1c40f; margin: 4px 0;">💎 VALUABLE RESOURCES:</div>
+      <div id="valuableResGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;"></div>
+    </div>
+
+    <div id="secGearAttach" style="display: none;">
+      <div class="gear-grid" id="gearAttachGrid"></div>
+    </div>
+  </div>
+
+  <!-- ২. ডুয়াল-স্লট লোডআউট মোডাল (Primary Slot vs Mining Slot Selection) -->
+  <div class="game-modal" id="loadoutModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">WEAPON SELECTION & SLOT MATRIX</span>
+      <button class="close-btn" id="btnCloseLoadout">✕</button>
+    </div>
+
+    <!-- স্লট ক্যাটাগরি সুইচ (স্লট সিলেকশন) -->
+    <div style="font-size: 10px; font-weight: bold; color: #a4b0be; margin-bottom: 6px;">CHOOSE ACTIVE WEAPON SLOT TO CONNECT WITH ATTACK BUTTON:</div>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <div id="btnSelectPrimarySlot" onclick="selectSlotCategory('PRIMARY')" style="flex: 1; background: rgba(192, 57, 43, 0.2); border: 2px solid #e74c3c; border-radius: 8px; padding: 8px; text-align: center; cursor: pointer;">
+        <div style="font-size: 11px; font-weight: bold; color: #ff7675;">🔴 PRIMARY SLOT</div>
+        <div style="font-size: 9px; color: #aaa;">Guns (AR / Shotgun)</div>
+      </div>
+      <div id="btnSelectMiningSlot" onclick="selectSlotCategory('MINING')" style="flex: 1; background: rgba(230, 126, 34, 0.1); border: 1px dashed #f39c12; border-radius: 8px; padding: 8px; text-align: center; cursor: pointer;">
+        <div style="font-size: 11px; font-weight: bold; color: #f39c12;">🟠 MINING SLOT</div>
+        <div style="font-size: 9px; color: #aaa;">Tools (Pickaxe / Axe)</div>
+      </div>
+    </div>
+
+    <!-- PRIMARY WEAPONS (2 SLOTS) -->
+    <div style="font-size: 10px; font-weight: bold; color: #ff7675; margin-bottom: 4px;">PRIMARY WEAPONS (GUNS):</div>
+    <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+      <div id="box_gun1" class="gear-slot-box" style="flex: 1;">
+        <div>
+          <div style="font-size: 9px; color: #aaa;">GUN 1</div>
+          <div style="font-size: 10px; font-weight: bold;" id="name_gun1">AR Rifle</div>
+        </div>
+        <button class="nav-btn" onclick="toggleWeaponEquip('gun1')">REMOVE</button>
+      </div>
+      <div id="box_gun2" class="gear-slot-box" style="flex: 1;">
+        <div>
+          <div style="font-size: 9px; color: #aaa;">GUN 2</div>
+          <div style="font-size: 10px; font-weight: bold;" id="name_gun2">Shotgun</div>
+        </div>
+        <button class="nav-btn" onclick="toggleWeaponEquip('gun2')">REMOVE</button>
+      </div>
+    </div>
+
+    <!-- MINING WEAPONS (2 SLOTS) -->
+    <div style="font-size: 10px; font-weight: bold; color: #f39c12; margin-bottom: 4px;">MINING & GATHERING TOOLS:</div>
+    <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+      <div id="box_tool1" class="gear-slot-box" style="flex: 1;">
+        <div>
+          <div style="font-size: 9px; color: #aaa;">TOOL 1 (STONE)</div>
+          <div style="font-size: 10px; font-weight: bold;" id="name_tool1">Pickaxe</div>
+        </div>
+        <button class="nav-btn" onclick="toggleWeaponEquip('tool1')">REMOVE</button>
+      </div>
+      <div id="box_tool2" class="gear-slot-box" style="flex: 1;">
+        <div>
+          <div style="font-size: 9px; color: #aaa;">TOOL 2 (WOOD)</div>
+          <div style="font-size: 10px; font-weight: bold;" id="name_tool2">Hatchet Axe</div>
+        </div>
+        <button class="nav-btn" onclick="toggleWeaponEquip('tool2')">REMOVE</button>
+      </div>
+    </div>
+
+    <!-- ম্যাগাজিন ও অ্যামো রিফিল -->
+    <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid #1f4a33; border-radius: 8px; padding: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-size: 11px; font-weight: bold;">AR MAGAZINE</span>
+        <span id="loadoutMagTxt" style="font-size: 12px; font-weight: bold; color: #00cec9;">30 / 30</span>
+      </div>
+      <div style="font-size: 10px; color: #a4b0be; margin-bottom: 8px;">Backpack Reserve Ammo: <b id="loadoutResTxt" style="color: #fff;">1000</b></div>
+      <button id="btnRefillAmmo" style="width: 100%; background: #00cec9; border: none; padding: 8px; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer;">
+        🔄 RELOAD MAGAZINE (30 ROUNDS)
+      </button>
+    </div>
+  </div>
+
+  <!-- ৩. ট্রেডার মার্কেট শপ -->
+  <div class="game-modal" id="marketModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #f1c40f;">OUTPOST TRADER SHOP</span>
+      <button class="close-btn" id="btnCloseMarket">✕</button>
+    </div>
+    <div style="font-size: 11px; color: #00ffaa; margin-bottom: 8px;">BALANCE: <b id="shopBalanceTxt">$0 Credits</b></div>
+    <div style="font-size: 10px; font-weight: bold; color: #e67e22; margin-bottom: 4px;">SELL RESOURCES:</div>
+    <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+      <div class="gear-slot-box"><span>🍓 Wild Fruits (Sell for $6)</span><button class="nav-btn" onclick="sellResource('fruits', 6)">SELL 1x</button></div>
+      <div class="gear-slot-box"><span>🧪 Tissue Sample (Sell for $35)</span><button class="nav-btn" onclick="sellResource('samples', 35)">SELL 1x</button></div>
+      <div class="gear-slot-box"><span>💎 Crystal (Sell for $50)</span><button class="nav-btn" onclick="sellResource('crystals', 50)">SELL 1x</button></div>
+    </div>
+    <div style="font-size: 10px; font-weight: bold; color: #2ecc71; margin-bottom: 4px;">PURCHASE AMMO & GEAR:</div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div class="gear-slot-box"><span>🎯 60x Rifle Ammo ($20)</span><button class="nav-btn" onclick="buyItem('ammo', 20, 60)" style="background:#27ae60; color:#fff;">BUY</button></div>
+      <div class="gear-slot-box"><span>🩹 5x Bandages ($15)</span><button class="nav-btn" onclick="buyItem('bandage', 15, 5)" style="background:#27ae60; color:#fff;">BUY</button></div>
+    </div>
+  </div>
+
+  <script>
+    // ========================================================
+    // ১. গাণিতিক টেরেইন
+    // ========================================================
+    function getTerrainHeight(x, z) {
+      const riverDist = Math.abs(x - 7 * Math.sin(z * 0.04));
+      if (riverDist < 15) return -3.0 + (riverDist / 15) * 2.0;
+      return Math.max(0, Math.sin(x * 0.03) * Math.cos(z * 0.03) * 10 + Math.sin(x * 0.08) * 3.5);
+    }
+
+    // ========================================================
+    // ২. থ্রি.জেএস ৩ডি সিন
+    // ========================================================
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 800);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance", precision: "mediump" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    document.getElementById("gameContainer").appendChild(renderer.domElement);
+
+    scene.fog = new THREE.FogExp2(0x0a1410, 0.007);
+    scene.add(new THREE.AmbientLight(0xd4edda, 0.6));
+
+    const sun = new THREE.DirectionalLight(0xfff4d6, 1.0);
+    sun.position.set(50, 90, 30);
+    scene.add(sun);
+
+    const mapSize = 340;
+    const terrainGeo = new THREE.PlaneGeometry(mapSize, mapSize, 45, 45);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const posAttr = terrainGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      posAttr.setY(i, getTerrainHeight(posAttr.getX(i), posAttr.getZ(i)));
+    }
+    terrainGeo.computeVertexNormals();
+    const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ color: 0x194d25, roughness: 0.85 }));
+    scene.add(terrain);
+
+    const river = new THREE.Mesh(
+      new THREE.PlaneGeometry(mapSize, mapSize),
+      new THREE.MeshStandardMaterial({ color: 0x0abde3, roughness: 0.1, metalness: 0.7, transparent: true, opacity: 0.85 })
+    );
+    river.rotation.x = -Math.PI / 2;
+    river.position.set(0, -0.5, 0);
+    scene.add(river);
+
+    // কাঁটাঝোপ ও ফল
+    const thornBushes = [];
+    const thornGeo = new THREE.DodecahedronGeometry(0.8);
+    const thornMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9 });
+    const berryGeo = new THREE.SphereGeometry(0.2, 6, 6);
+    const berryMat = new THREE.MeshStandardMaterial({ color: 0xe84393, emissive: 0x9b1d56, roughness: 0.3 });
+
+    for (let i = 0; i < 30; i++) {
+      const bx = (Math.random() - 0.5) * 230;
+      const bz = (Math.random() - 0.5) * 230;
+      if (Math.abs(bx) < 15) continue;
+
+      const bushGroup = new THREE.Group();
+      const mainBranch = new THREE.Mesh(thornGeo, thornMat);
+      mainBranch.scale.set(1.2, 1.4, 1.2);
+      mainBranch.position.y = 0.6;
+      bushGroup.add(mainBranch);
+
+      const berries = [];
+      for (let j = 0; j < 3; j++) {
+        const berry = new THREE.Mesh(berryGeo, berryMat);
+        berry.position.set((Math.random() - 0.5) * 0.9, 0.5 + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
+        bushGroup.add(berry);
+        berries.push(berry);
+      }
+
+      bushGroup.position.set(bx, getTerrainHeight(bx, bz), bz);
+      scene.add(bushGroup);
+      thornBushes.push({ group: bushGroup, berries: berries, fruitCount: 3, hp: 3 });
+    }
+
+    // পাথর ও গাছ
+    const rocks = [];
+    const stoneGeo = new THREE.DodecahedronGeometry(1.4);
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7f8c8d, roughness: 0.8 });
+    for (let i = 0; i < 20; i++) {
+      const rx = (Math.random() - 0.5) * 240;
+      const rz = (Math.random() - 0.5) * 240;
+      if (Math.abs(rx) < 15) continue;
+      const rMesh = new THREE.Mesh(stoneGeo, stoneMat);
+      rMesh.position.set(rx, getTerrainHeight(rx, rz) + 0.7, rz);
+      scene.add(rMesh);
+      rocks.push({ mesh: rMesh, hp: 5 });
+    }
+
+    const trees = [];
+    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.4, 3.5, 6);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28 });
+    const leafGeo = new THREE.ConeGeometry(1.8, 4.0, 6);
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x1e8449 });
+    for (let i = 0; i < 30; i++) {
+      const tx = (Math.random() - 0.5) * 240;
+      const tz = (Math.random() - 0.5) * 240;
+      if (Math.abs(tx) < 15) continue;
+      const tGroup = new THREE.Group();
+      const trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.position.y = 1.75;
+      const leaves = new THREE.Mesh(leafGeo, leafMat); leaves.position.y = 4.5;
+      tGroup.add(trunk); tGroup.add(leaves);
+      tGroup.position.set(tx, getTerrainHeight(tx, tz), tz);
+      scene.add(tGroup);
+      trees.push({ mesh: tGroup, hp: 4 });
+    }
+
+    // জম্বি
+    const zombies = [];
+    for (let i = 0; i < 3; i++) {
+      const zGroup = new THREE.Group();
+      const zMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x27ae60 }));
+      zGroup.add(zMesh);
+      const zx = (Math.random() - 0.5) * 120 + 20;
+      const zz = (Math.random() - 0.5) * 120 - 20;
+      zGroup.position.set(zx, getTerrainHeight(zx, zz) + 0.9, zz);
+      scene.add(zGroup);
+      zombies.push({ mesh: zGroup, hp: 60, isDead: false });
+    }
+
+    // ক্যাম্পফায়ার ও টেন্ট
+    const campfire = new THREE.Group();
+    const firePit = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0x3d3d3d }));
+    campfire.add(firePit);
+    campfire.position.set(4.0, getTerrainHeight(4.0, 3), 3);
+    scene.add(campfire);
+
+    const interiorRoomPos = new THREE.Vector3(800, 50, 800);
+    const interiorGroup = new THREE.Group();
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0x5a3825 }));
+    interiorGroup.add(floor);
+    const roomShell = new THREE.Mesh(new THREE.BoxGeometry(10, 5.0, 10), new THREE.MeshStandardMaterial({ color: 0x1abc9c, side: THREE.BackSide }));
+    roomShell.position.y = 2.5; interiorGroup.add(roomShell);
+    interiorGroup.position.copy(interiorRoomPos);
+    scene.add(interiorGroup);
+
+    // ========================================================
+    // ৪. প্লেয়ার লোডআউট ও স্টেট
+    // ========================================================
+    window.PlayerData = {
+      credits: 0,
+      activeSlotCategory: 'PRIMARY', // 'PRIMARY' (Gun Slots) বা 'MINING' (Tool Slots)
+      activeWeaponIndex: 1,         // 1 বা 2
+      slots: {
+        gun1: { name: "AR Rifle", equipped: true, type: "GUN" },
+        gun2: { name: "Shotgun", equipped: true, type: "GUN" },
+        tool1: { name: "Pickaxe", equipped: true, type: "STONE_TOOL" },
+        tool2: { name: "Hatchet Axe", equipped: true, type: "WOOD_TOOL" }
+      },
+      magazine: 30,
+      reserveAmmo: 1000,
+      resources: {
+        normal: { wood: 14, stone: 10, grass: 0, raw_water: 0 },
+        valuable: { bandage: 30, food: 30, fruits: 0, raw_meat: 4, samples: 0, iron_ore: 8, crystals: 1 }
+      },
+      gearAttachments: {
+        tent: { name: "Tactical Tent", equipped: true },
+        small_bag: { name: "Light Scout Pouch", equipped: true },
+        aid_kit: { name: "Trauma Kit Bag", equipped: true },
+        shirt: { name: "Combat Shirt", equipped: true },
+        pant: { name: "Cargo Pant", equipped: true },
+        jacket: { name: "Kevlar Vest", equipped: true },
+        hat: { name: "Recon Cap", equipped: true },
+        boot: { name: "Combat Boots", equipped: true }
+      }
+    };
+
+    const Survival = {
+      hp: 100, hunger: 100, thirst: 100, stamina: 100,
+      flaskCharges: 5, isInsideTent: false
+    };
+
+    // ========================================================
+    // ৫. ক্যারেক্টার অবতার ও ৩ডি অস্ত্র
+    // ========================================================
+    const player = new THREE.Group();
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf3c59a });
+    const clothMat = new THREE.MeshStandardMaterial({ color: 0x243342 });
+
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 10), skinMat);
+    pHead.position.y = 2.35; player.add(pHead);
+    const pChest = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.34, 1.0, 8), clothMat);
+    pChest.position.y = 1.6; player.add(pChest);
+
+    const pLeftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), skinMat);
+    pLeftArm.position.set(-0.55, 1.5, 0);
+    const pRightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), skinMat);
+    pRightArm.position.set(0.55, 1.5, 0);
+    player.add(pLeftArm); player.add(pRightArm);
+
+    const mesh_gun1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 1.1), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+    mesh_gun1.position.set(0.2, -0.2, 0.4);
+    pRightArm.add(mesh_gun1);
+
+    const mesh_gun2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.8), new THREE.MeshStandardMaterial({ color: 0x4a2e18 }));
+    mesh_gun2.position.set(0.2, -0.2, 0.4); mesh_gun2.visible = false;
+    pRightArm.add(mesh_gun2);
+
+    const mesh_pickaxe = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.14), new THREE.MeshStandardMaterial({ color: 0xbdc3c7 }));
+    mesh_pickaxe.position.set(0, -0.2, 0.6); mesh_pickaxe.visible = false;
+    pRightArm.add(mesh_pickaxe);
+
+    const mesh_axe = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.1), new THREE.MeshStandardMaterial({ color: 0xe67e22 }));
+    mesh_axe.position.set(0, -0.2, 0.6); mesh_axe.visible = false;
+    pRightArm.add(mesh_axe);
+
+    const mesh_knife = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.4, 0.1), new THREE.MeshStandardMaterial({ color: 0x8e44ad }));
+    mesh_knife.position.set(-0.2, -0.2, 0.3); mesh_knife.visible = false;
+    pLeftArm.add(mesh_knife);
+
+    const pLeftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 1.1, 6), clothMat);
+    pLeftLeg.position.set(-0.22, 0.6, 0);
+    const pRightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 1.1, 6), clothMat);
+    pRightLeg.position.set(0.22, 0.6, 0);
+    player.add(pLeftLeg); player.add(pRightLeg);
+
+    player.position.set(0, getTerrainHeight(0, 4), 4);
+    scene.add(player);
+
+    const limbs = { leftArm: pLeftArm, rightArm: pRightArm, leftLeg: pLeftLeg, rightLeg: pRightLeg };
+
+    // ========================================================
+    // ৬. স্লট সিলেকশন, সোয়াইপ এবং অ্যাটাক বাটন কানেকশন
+    // ========================================================
+    function updateActiveWeaponVisuals() {
+      mesh_gun1.visible = false; mesh_gun2.visible = false;
+      mesh_pickaxe.visible = false; mesh_axe.visible = false;
+
+      const pData = window.PlayerData;
+      const btnAtk = document.getElementById("hud_attack");
+      const slotTxt = document.getElementById("activeSlotCategoryTxt");
+
+      slotTxt.innerText = pData.activeSlotCategory;
+
+      if (pData.activeSlotCategory === 'PRIMARY') {
+        slotTxt.style.color = "#ff7675";
+        if (pData.activeWeaponIndex === 1 && pData.slots.gun1.equipped) {
+          mesh_gun1.visible = true;
+          document.getElementById("activeWeaponTxt").innerText = "AR RIFLE";
+          btnAtk.innerText = "🔥 SHOOT"; btnAtk.style.background = "#c0392b";
+        } else if (pData.activeWeaponIndex === 2 && pData.slots.gun2.equipped) {
+          mesh_gun2.visible = true;
+          document.getElementById("activeWeaponTxt").innerText = "SHOTGUN";
+          btnAtk.innerText = "💥 BLAST"; btnAtk.style.background = "#d35400";
+        } else {
+          document.getElementById("activeWeaponTxt").innerText = "NO GUN";
+          btnAtk.innerText = "EMPTY";
+        }
+      } else {
+        slotTxt.style.color = "#f39c12";
+        if (pData.activeWeaponIndex === 1 && pData.slots.tool1.equipped) {
+          mesh_pickaxe.visible = true;
+          document.getElementById("activeWeaponTxt").innerText = "PICKAXE (STONE)";
+          btnAtk.innerText = "⛏️ MINE"; btnAtk.style.background = "#e67e22";
+        } else if (pData.activeWeaponIndex === 2 && pData.slots.tool2.equipped) {
+          mesh_axe.visible = true;
+          document.getElementById("activeWeaponTxt").innerText = "HATCHET AXE (WOOD)";
+          btnAtk.innerText = "🪓 CHOP"; btnAtk.style.background = "#27ae60";
+        } else {
+          document.getElementById("activeWeaponTxt").innerText = "NO TOOL";
+          btnAtk.innerText = "EMPTY";
+        }
+      }
+    }
+
+    // স্লট ক্যাটাগরি সুইচ (স্লট সিলেকশন)
+    window.selectSlotCategory = function(cat) {
+      window.PlayerData.activeSlotCategory = cat;
+      const pBtn = document.getElementById("btnSelectPrimarySlot");
+      const mBtn = document.getElementById("btnSelectMiningSlot");
+      if (cat === 'PRIMARY') {
+        pBtn.style.border = "2px solid #e74c3c"; pBtn.style.background = "rgba(192, 57, 43, 0.25)";
+        mBtn.style.border = "1px dashed #f39c12"; mBtn.style.background = "rgba(230, 126, 34, 0.08)";
+      } else {
+        mBtn.style.border = "2px solid #f39c12"; mBtn.style.background = "rgba(230, 126, 34, 0.25)";
+        pBtn.style.border = "1px dashed #e74c3c"; pBtn.style.background = "rgba(192, 57, 43, 0.08)";
+      }
+      updateActiveWeaponVisuals();
+      autoSaveGameProgress();
+    };
+
+    // সোয়াইপ বাটন চাপলে সক্রিয় স্লটের অস্ত্র স্বয়ংক্রিয়ভাবে অদলবদল (Swipe/Swap) হবে
+    document.getElementById("hud_swipe").onclick = () => {
+      window.PlayerData.activeWeaponIndex = window.PlayerData.activeWeaponIndex === 1 ? 2 : 1;
+      updateActiveWeaponVisuals();
+    };
+
+    window.toggleWeaponEquip = function(slotKey) {
+      const s = window.PlayerData.slots[slotKey];
+      s.equipped = !s.equipped;
+      alert(`${s.name} ${s.equipped ? "EQUIPPED" : "REMOVED"}!`);
+      updateActiveWeaponVisuals();
+      renderLoadoutUI();
+      autoSaveGameProgress();
+    };
+
+    function renderLoadoutUI() {
+      for (let k in window.PlayerData.slots) {
+        const s = window.PlayerData.slots[k];
+        const box = document.getElementById("box_" + k);
+        const nameEl = document.getElementById("name_" + k);
+        if (box && nameEl) {
+          nameEl.innerText = s.name;
+          const btn = box.querySelector("button");
+          btn.innerText = s.equipped ? "REMOVE" : "ADD";
+          btn.style.background = s.equipped ? "#c0392b" : "#27ae60";
+          box.style.borderColor = s.equipped ? "#00ffaa" : "#e74c3c";
+        }
+      }
+    }
+
+    // ফ্রুট পিকিং
+    let currentNearThorn = null;
+    document.getElementById("thornFruitPrompt").onclick = () => {
+      if (currentNearThorn && currentNearThorn.fruitCount > 0) {
+        currentNearThorn.fruitCount--;
+        if (currentNearThorn.berries[currentNearThorn.fruitCount]) {
+          currentNearThorn.berries[currentNearThorn.fruitCount].visible = false;
+        }
+        window.PlayerData.resources.valuable.fruits = (window.PlayerData.resources.valuable.fruits || 0) + 1;
+        document.getElementById("fruitTxt").innerText = window.PlayerData.resources.valuable.fruits;
+        alert("🍓 Picked Wild Berry from Thorn Bush! (+1 Fruit added)");
+        autoSaveGameProgress();
+      }
+    };
+
+    document.getElementById("btnEatFruit").onclick = () => {
+      if ((window.PlayerData.resources.valuable.fruits || 0) > 0) {
+        window.PlayerData.resources.valuable.fruits--;
+        Survival.hunger = Math.min(100, Survival.hunger + 15);
+        Survival.thirst = Math.min(100, Survival.thirst + 10);
+        document.getElementById("fruitTxt").innerText = window.PlayerData.resources.valuable.fruits;
+        updateUI(); autoSaveGameProgress();
+        alert("🍓 Ate delicious Wild Berry! (+15 Hunger & +10 Thirst quenched)");
+      } else {
+        alert("❌ No Wild Fruits in backpack! Harvest from Thorn Bushes.");
+      }
+    };
+
+    // নাইফ বাটন
+    document.getElementById("hud_knife").onclick = () => {
+      limbs.leftArm.rotation.x = -Math.PI / 1.5;
+      mesh_knife.visible = true;
+      setTimeout(() => { limbs.leftArm.rotation.x = 0; mesh_knife.visible = false; }, 180);
+
+      window.PlayerData.resources.normal.grass = (window.PlayerData.resources.normal.grass || 0) + 2;
+      document.getElementById("grassTxt").innerText = window.PlayerData.resources.normal.grass;
+
+      thornBushes.forEach(tb => {
+        if (player.position.distanceTo(tb.group.position) < 3.5 && tb.fruitCount > 0) {
+          tb.fruitCount--;
+          if (tb.berries[tb.fruitCount]) tb.berries[tb.fruitCount].visible = false;
+          window.PlayerData.resources.valuable.fruits = (window.PlayerData.resources.valuable.fruits || 0) + 1;
+          document.getElementById("fruitTxt").innerText = window.PlayerData.resources.valuable.fruits;
+          alert("🔪 Sliced Wild Berry with Knife! (+1 Fruit added)");
+        }
+      });
+
+      zombies.forEach(z => {
+        if (z.isDead && player.position.distanceTo(z.mesh.position) < 4.0) {
+          window.PlayerData.resources.valuable.samples = (window.PlayerData.resources.valuable.samples || 0) + 1;
+          window.PlayerData.resources.valuable.raw_meat = (window.PlayerData.resources.valuable.raw_meat || 0) + 2;
+          document.getElementById("sampleTxt").innerText = window.PlayerData.resources.valuable.samples;
+          z.mesh.position.y = -50;
+          alert("🧪 HARVESTED: +1 Zombie Tissue Sample & +2 Raw Meat!");
+        }
+      });
+      autoSaveGameProgress();
+    };
+
+    // অ্যাটাক বাটন প্রেস
+    document.getElementById("hud_attack").onclick = () => {
+      const pData = window.PlayerData;
+
+      // ১. প্রাইমারি স্লট সক্রিয় থাকলে (বন্দুক ফায়ার)
+      if (pData.activeSlotCategory === 'PRIMARY') {
+        if (pData.magazine <= 0) { alert("⚠️ Magazine Empty! Reload in loadout."); return; }
+        pData.magazine--;
+        limbs.rightArm.rotation.x = -Math.PI / 2.2;
+        setTimeout(() => { limbs.rightArm.rotation.x = -Math.PI / 2.0; }, 80);
+
+        zombies.forEach(z => {
+          if (!z.isDead && player.position.distanceTo(z.mesh.position) < 35) {
+            z.hp -= (pData.activeWeaponIndex === 1 ? 30 : 50); // শটগানে ড্যামেজ বেশি
+            if (z.hp <= 0) {
+              z.isDead = true; z.mesh.rotation.x = Math.PI / 2;
+              alert("💀 Zombie Killed! Use KNIFE on corpse to harvest!");
+            }
+          }
+        });
+      }
+      // ২. মাইনিং স্লট সক্রিয় থাকলে
+      else {
+        limbs.rightArm.rotation.x = -Math.PI / 1.4;
+        setTimeout(() => { limbs.rightArm.rotation.x = 0; }, 160);
+
+        // টুল ১ (পিকঅ্যাক্স): শুধু পাথর
+        if (pData.activeWeaponIndex === 1) {
+          rocks.forEach(r => {
+            if (player.position.distanceTo(r.mesh.position) < 4.5 && r.hp > 0) {
+              r.hp--; pData.resources.normal.stone += 3;
+              if (r.hp <= 0) r.mesh.position.y = -30;
+              alert("⛏️ Pickaxe gathered +3 Stones!");
+            }
+          });
+        }
+        // টুল ২ (কুঠার): শুধু কাঠ/গাছ
+        else if (pData.activeWeaponIndex === 2) {
+          trees.forEach(t => {
+            if (player.position.distanceTo(t.mesh.position) < 4.5 && t.hp > 0) {
+              t.hp--; pData.resources.normal.wood += 3;
+              if (t.hp <= 0) t.mesh.position.y = -30;
+              alert("🪓 Axe gathered +3 Wood!");
+            }
+          });
+        }
+      }
+      updateUI();
+      autoSaveGameProgress();
+    };
+
+    // ========================================================
+    // ৭. ক্যামেরা ও জয়স্টিক ড্রাইভার
+    // ========================================================
+    const cameraLook = { yaw: 0, pitch: 0.35, distance: 12.0 };
+    let lookId = null, lastX = 0, lastY = 0;
+    let isAiming = false;
+
+    document.getElementById("hud_aim").onclick = () => {
+      isAiming = !isAiming;
+      document.getElementById("crosshairOverlay").style.display = isAiming ? "block" : "none";
+      document.getElementById("hud_aim").style.background = isAiming ? "#2980b9" : "#34495e";
+    };
+
+    window.addEventListener("touchstart", (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const target = document.elementFromPoint(t.clientX, t.clientY);
+        const isUI = target && (target.closest("#hud_joystick") || target.closest(".hud-element") || target.closest("#topNav") || target.closest("#hud") || target.closest(".action-prompt") || target.closest(".game-modal"));
+        if (!isUI && lookId === null) {
+          lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (lookId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === lookId) {
+          cameraLook.yaw -= (t.clientX - lastX) * 0.007;
+          cameraLook.pitch = Math.max(0.05, Math.min(1.35, cameraLook.pitch + (t.clientY - lastY) * 0.006));
+          lastX = t.clientX; lastY = t.clientY;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener("touchend", () => { lookId = null; });
+
+    const joyState = { x: 0, y: 0, active: false, magnitude: 0 };
+    const joyBase = document.getElementById("hud_joystick");
+    const joyThumb = document.getElementById("joyThumb");
+    let joyTouchId = null, joyCenter = { x: 0, y: 0 };
+
+    joyBase.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0]; joyTouchId = t.identifier;
+      const rect = joyBase.getBoundingClientRect();
+      joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (joyTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === joyTouchId) {
+          let dx = t.clientX - joyCenter.x;
+          let dy = t.clientY - joyCenter.y;
+          const dist = Math.hypot(dx, dy);
+          const maxR = 40;
+          if (dist > maxR) { dx = (dx / dist) * maxR; dy = (dy / dist) * maxR; }
+          joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+          joyState.x = dx / maxR;
+          joyState.y = -dy / maxR;
+          joyState.magnitude = Math.min(1.0, dist / maxR);
+          joyState.active = joyState.magnitude > 0.08;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    const endJoy = () => {
+      joyTouchId = null; joyThumb.style.transform = "translate(0px, 0px)";
+      joyState.x = 0; joyState.y = 0; joyState.active = false;
+    };
+    window.addEventListener("touchend", endJoy);
+    window.addEventListener("touchcancel", endJoy);
+
+    // ========================================================
+    // ৮. ব্যাকপ্যাক, মার্কেট ও ইউআই কন্ট্রোলার
+    // ========================================================
+    document.getElementById("btnRefillAmmo").onclick = () => {
+      const needed = 30 - window.PlayerData.magazine;
+      if (needed <= 0) { alert("Magazine full!"); return; }
+      const add = Math.min(needed, window.PlayerData.reserveAmmo);
+      window.PlayerData.magazine += add;
+      window.PlayerData.reserveAmmo -= add;
+      updateUI();
+      alert(`🔄 Reloaded +${add} rounds!`);
+    };
+
+    window.sellResource = function(type, price) {
+      const pool = window.PlayerData.resources.valuable[type] !== undefined ? window.PlayerData.resources.valuable : window.PlayerData.resources.normal;
+      if ((pool[type] || 0) > 0) {
+        pool[type]--;
+        window.PlayerData.credits += price;
+        updateUI(); renderBackpackUI();
+        alert(`💰 Sold 1x ${type.toUpperCase()} for +$${price}!`);
+      } else { alert("❌ Nothing to sell!"); }
+    };
+
+    window.buyItem = function(item, cost, amount) {
+      if (window.PlayerData.credits >= cost) {
+        window.PlayerData.credits -= cost;
+        if (item === 'ammo') window.PlayerData.reserveAmmo += amount;
+        else if (item === 'bandage') window.PlayerData.resources.valuable.bandage += amount;
+        updateUI(); renderBackpackUI();
+        alert(`🛍️ Bought +${amount}x ${item.toUpperCase()}!`);
+      } else { alert("❌ Insufficient credits!"); }
+    };
+
+    window.switchBagTab = function(tab) {
+      document.getElementById("tabRes").classList.toggle("active", tab === 'resources');
+      document.getElementById("tabGearAttach").classList.toggle("active", tab === 'gear');
+      document.getElementById("secResources").style.display = tab === 'resources' ? "block" : "none";
+      document.getElementById("secGearAttach").style.display = tab === 'gear' ? "block" : "none";
+      renderBackpackUI();
+    };
+
+    function renderBackpackUI() {
+      const nGrid = document.getElementById("normalResGrid");
+      nGrid.innerHTML = "";
+      for (let k in window.PlayerData.resources.normal) {
+        nGrid.innerHTML += `<div style="background:rgba(255,255,255,0.05); border:1px solid #1f4a33; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:8px; color:#aaa;">${k.toUpperCase()}</div><div style="font-size:11px; font-weight:bold; color:#00ffaa;">${window.PlayerData.resources.normal[k]}</div></div>`;
+      }
+      const vGrid = document.getElementById("valuableResGrid");
+      vGrid.innerHTML = "";
+      for (let k in window.PlayerData.resources.valuable) {
+        vGrid.innerHTML += `<div style="background:rgba(241,196,15,0.08); border:1px solid #f39c12; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:8px; color:#f1c40f;">${k.toUpperCase()}</div><div style="font-size:11px; font-weight:bold; color:#fff;">${window.PlayerData.resources.valuable[k]}</div></div>`;
+      }
+      const gGrid = document.getElementById("gearAttachGrid");
+      gGrid.innerHTML = "";
+      for (let k in window.PlayerData.gearAttachments) {
+        const item = window.PlayerData.gearAttachments[k];
+        gGrid.innerHTML += `<div class="gear-slot-box"><div><div style="font-size:9px; color:#00ffaa; font-weight:bold;">${k.toUpperCase()}</div><div style="font-size:10px; color:#fff;">${item.name}</div></div><button class="nav-btn" onclick="toggleGearAttach('${k}')">${item.equipped ? "REMOVE" : "ADD"}</button></div>`;
+      }
+    }
+
+    window.toggleGearAttach = function(key) {
+      const g = window.PlayerData.gearAttachments[key];
+      g.equipped = !g.equipped;
+      alert(`${g.name} ${g.equipped ? "EQUIPPED" : "REMOVED"}!`);
+      renderBackpackUI();
+      autoSaveGameProgress();
+    };
+
+    function updateUI() {
+      document.getElementById("creditsVal").innerText = `$${window.PlayerData.credits}`;
+      document.getElementById("loadoutMagTxt").innerText = `${window.PlayerData.magazine} / 30`;
+      document.getElementById("loadoutResTxt").innerText = window.PlayerData.reserveAmmo;
+      document.getElementById("shopBalanceTxt").innerText = `$${window.PlayerData.credits} Credits`;
+      document.getElementById("sampleTxt").innerText = window.PlayerData.resources.valuable.samples || 0;
+      document.getElementById("grassTxt").innerText = window.PlayerData.resources.normal.grass || 0;
+      document.getElementById("fruitTxt").innerText = window.PlayerData.resources.valuable.fruits || 0;
+      document.getElementById("hpVal").innerText = Math.round(Survival.hp);
+      document.getElementById("hpBar").style.width = Survival.hp + "%";
+      document.getElementById("thiVal").innerText = Math.round(Survival.thirst);
+      document.getElementById("hunVal").innerText = Math.round(Survival.hunger);
+      document.getElementById("hunBar").style.width = Survival.hunger + "%";
+    }
+
+    document.getElementById("btnOpenBag").onclick = () => { document.getElementById("backpackModal").style.display = "block"; renderBackpackUI(); };
+    document.getElementById("btnCloseBag").onclick = () => document.getElementById("backpackModal").style.display = "none";
+    document.getElementById("btnOpenLoadout").onclick = () => { document.getElementById("loadoutModal").style.display = "block"; renderLoadoutUI(); updateUI(); };
+    document.getElementById("btnCloseLoadout").onclick = () => document.getElementById("loadoutModal").style.display = "none";
+    document.getElementById("btnOpenMarket").onclick = () => { document.getElementById("marketModal").style.display = "block"; updateUI(); };
+    document.getElementById("btnCloseMarket").onclick = () => document.getElementById("marketModal").style.display = "none";
+
+    // ========================================================
+    // ৯. মাইলস্টোন অটো-সেভ ও লোড
+    // ========================================================
+    const SAVE_KEY = "outlive_milestone_savegame_v3";
+
+    function autoSaveGameProgress() {
+      const saveData = {
+        player: { x: player.position.x, y: player.position.y, z: player.position.z, rotY: player.rotation.y },
+        pData: window.PlayerData,
+        survival: Survival
+      };
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+        const toast = document.getElementById("saveToast");
+        toast.style.display = "block";
+        setTimeout(() => { toast.style.display = "none"; }, 1500);
+      } catch (e) {}
+    }
+
+    function loadGameProgress() {
+      const savedStr = localStorage.getItem(SAVE_KEY);
+      if (!savedStr) return;
+      try {
+        const data = JSON.parse(savedStr);
+        if (data.player) {
+          player.position.set(data.player.x, data.player.y, data.player.z);
+          player.rotation.y = data.player.rotY || 0;
+        }
+        if (data.pData) window.PlayerData = data.pData;
+        if (data.survival) Object.assign(Survival, data.survival);
+      } catch (e) {}
+    }
+
+    setInterval(autoSaveGameProgress, 6000);
+    window.addEventListener("beforeunload", autoSaveGameProgress);
+
+    // ========================================================
+    // ১০. মাস্টার ৬০ FPS গেম লুপ
+    // ========================================================
+    const clock = new THREE.Clock();
+    let lastThornHurt = 0;
+
+    function gameLoop() {
+      requestAnimationFrame(gameLoop);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      Survival.thirst = Math.max(0, Survival.thirst - dt * 0.15);
+      Survival.hunger = Math.max(0, Survival.hunger - dt * 0.1);
+
+      if (joyState.active) {
+        const sinC = Math.sin(cameraLook.yaw);
+        const cosC = Math.cos(cameraLook.yaw);
+        const mx = joyState.x * cosC + joyState.y * sinC;
+        const mz = -joyState.x * sinC + joyState.y * cosC;
+
+        const targetAngle = Math.atan2(mx, mz);
+        let diff = targetAngle - player.rotation.y;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        player.rotation.y += diff * Math.min(1.0, 18.0 * dt);
+
+        const spd = joyState.magnitude > 0.58 ? 13.0 : 5.5;
+        player.position.x += mx * spd * dt;
+        player.position.z += mz * spd * dt;
+
+        limbs.leftLeg.rotation.x = Math.sin(Date.now() * 0.012) * 0.6;
+        limbs.rightLeg.rotation.x = -Math.sin(Date.now() * 0.012) * 0.6;
+      } else {
+        limbs.leftLeg.rotation.x = 0; limbs.rightLeg.rotation.x = 0;
+      }
+
+      player.position.y = THREE.MathUtils.lerp(player.position.y, getTerrainHeight(player.position.x, player.position.z), 0.28);
+
+      currentNearThorn = null;
+      let minThornDist = 4.0;
+      const now = performance.now();
+
+      thornBushes.forEach(tb => {
+        const dist = player.position.distanceTo(tb.group.position);
+        if (dist < 1.4 && now - lastThornHurt > 1500) {
+          lastThornHurt = now;
+          Survival.hp = Math.max(0, Survival.hp - 5);
+          alert("🌵 Ouch! Thorn Bush pierced your skin! (-5 HP)");
+          updateUI();
+        }
+        if (dist < minThornDist && tb.fruitCount > 0) {
+          minThornDist = dist;
+          currentNearThorn = tb;
+        }
+      });
+
+      document.getElementById("thornFruitPrompt").style.display = currentNearThorn ? "block" : "none";
+
+      const targetDist = isAiming ? 6.5 : cameraLook.distance;
+      const hDist = targetDist * Math.cos(cameraLook.pitch);
+      const vDist = (targetDist * Math.sin(cameraLook.pitch)) + 2.5;
+
+      camera.position.x = player.position.x - Math.sin(cameraLook.yaw) * hDist;
+      camera.position.z = player.position.z - Math.cos(cameraLook.yaw) * hDist;
+      camera.position.y = player.position.y + vDist;
+      camera.lookAt(player.position.x, player.position.y + 1.6, player.position.z);
+
+      renderer.render(scene, camera);
+    }
+
+    loadGameProgress();
+    updateActiveWeaponVisuals();
+    renderLoadoutUI();
+    renderBackpackUI();
+    updateUI();
+    gameLoop();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
