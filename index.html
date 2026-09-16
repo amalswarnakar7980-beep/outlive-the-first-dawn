@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Outlive: Landscape Homestead & Tent Upgrades</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #020704; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+    #gameContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+    /* ল্যান্ডস্কেপ মোড ওয়ার্নিং ওভারলে */
+    #landscapeWarning {
+      display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #040c08; z-index: 99999; flex-direction: column;
+      align-items: center; justify-content: center; color: #00ffaa; text-align: center;
+      font-weight: 800; font-size: 14px; padding: 20px;
+    }
+    @media screen and (orientation: portrait) {
+      #landscapeWarning { display: flex !important; }
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 8px; left: 8px; z-index: 1000;
+      background: rgba(6, 18, 14, 0.92); border: 1px solid #00ffaa;
+      border-radius: 8px; padding: 6px 10px; color: #fff; font-size: 10px;
+      backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0, 255, 170, 0.25);
+    }
+    .bar-bg { background: #12291d; height: 4px; border-radius: 2px; margin: 2px 0 4px 0; width: 120px; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.2s; }
+
+    #saveToast {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(10, 35, 24, 0.95); border: 1px solid #00ffaa;
+      color: #00ffaa; font-weight: 800; font-size: 10px; padding: 5px 12px;
+      border-radius: 20px; z-index: 3000; display: none;
+      box-shadow: 0 0 15px rgba(0, 255, 170, 0.4);
+    }
+
+    /* টপ কন্ট্রোল বার */
+    #topNav {
+      position: fixed; top: 8px; right: 8px; z-index: 2000;
+      display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;
+    }
+    .nav-btn {
+      background: rgba(8, 24, 18, 0.88); border: 1px solid #00ffaa;
+      border-radius: 6px; color: #00ffaa; font-weight: 800; font-size: 9px;
+      padding: 5px 8px; cursor: pointer; backdrop-filter: blur(4px);
+    }
+    .nav-btn:active { transform: scale(0.95); }
+
+    .action-prompt {
+      display: none; position: fixed; left: 50%; transform: translateX(-50%);
+      z-index: 2000; color: #fff; padding: 8px 16px; border-radius: 30px;
+      font-weight: bold; font-size: 11px; cursor: pointer; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+    #campPrompt { bottom: 100px; background: #d35400; border: 2px solid #f39c12; }
+    #doorPrompt { bottom: 65px; background: #16a085; border: 2px solid #1abc9c; }
+
+    /* জয়স্টিক */
+    #hud_joystick {
+      position: fixed; bottom: 18px; left: 18px; width: 110px; height: 110px;
+      background: radial-gradient(circle, rgba(14,40,28,0.7) 0%, rgba(5,18,12,0.85) 100%);
+      border: 2px solid rgba(0, 255, 170, 0.5); border-radius: 50%; z-index: 1000;
+    }
+    #joyCenterBall {
+      position: absolute; width: 16px; height: 16px; background: rgba(0, 255, 170, 0.4);
+      border-radius: 50%; top: 50%; left: 50%; margin-top: -8px; margin-left: -8px;
+      pointer-events: none;
+    }
+    #joyThumb {
+      position: absolute; width: 44px; height: 44px;
+      background: radial-gradient(circle at 30% 30%, #55efc4, #00b894);
+      border: 2px solid #00ffaa; border-radius: 50%;
+      box-shadow: 0 0 14px #00ffaa; pointer-events: none;
+      top: 50%; left: 50%; margin-top: -22px; margin-left: -22px;
+      transform: translate(0px, 0px);
+    }
+
+    /* বাটন ক্লাস্টার */
+    .hud-element {
+      position: fixed; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; color: #fff; font-weight: 900;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6); touch-action: none;
+    }
+    .hud-element:active { filter: brightness(1.2); }
+
+    #editModeBanner {
+      display: none; position: fixed; top: 45px; left: 50%; transform: translateX(-50%);
+      background: rgba(231, 76, 60, 0.95); color: #fff; padding: 5px 12px; border-radius: 20px;
+      font-size: 10px; font-weight: bold; z-index: 3000;
+    }
+    .editing-border { outline: 2px dashed #f1c40f !important; }
+
+    /* মোডাল উইন্ডোজ */
+    .game-modal {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 440px; max-width: 95vw; background: rgba(5, 16, 12, 0.98); border: 1.5px solid #00ffaa;
+      border-radius: 12px; padding: 14px; color: #fff; z-index: 10005; box-shadow: 0 0 35px rgba(0, 255, 170, 0.35);
+      backdrop-filter: blur(10px); max-height: 90vh; overflow-y: auto;
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a3a2a; padding-bottom: 6px; margin-bottom: 8px; }
+    .close-btn { background: none; border: none; color: #ff4757; font-size: 18px; font-weight: bold; cursor: pointer; }
+
+    .slot-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 6px; }
+    .station-slot {
+      flex: 1; height: 65px; background: rgba(255,255,255,0.04); border: 2px dashed #2ecc71;
+      border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 9px; text-align: center; padding: 4px;
+    }
+    .slot-active { border-style: solid; background: rgba(46, 204, 113, 0.12); }
+    .slot-label { font-weight: 800; color: #00ffaa; margin-bottom: 2px; }
+    .slot-val { font-size: 9px; font-weight: bold; color: #fff; }
+
+    .craft-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .craft-tab-btn {
+      flex: 1; padding: 5px 0; background: rgba(255,255,255,0.06); border: 1px solid #1a422e;
+      color: #7ab896; font-size: 9px; font-weight: bold; border-radius: 6px; cursor: pointer;
+    }
+    .craft-tab-btn.active { background: #00ffaa; color: #000; border-color: #00ffaa; }
+
+    .gear-card {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid #1f4a33; border-radius: 8px;
+      padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <!-- ল্যান্ডস্কেপ ওরিয়েন্টেশন প্রম্পট -->
+  <div id="landscapeWarning">
+    <div style="font-size: 32px; margin-bottom: 10px;">🔄</div>
+    <div>PLEASE ROTATE YOUR DEVICE TO LANDSCAPE MODE</div>
+    <div style="font-size: 11px; color: #7ab896; margin-top: 5px;">This game is optimized for landscape gameplay</div>
+  </div>
+
+  <div id="gameContainer"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div style="color: #00ffaa; font-weight: 800; margin-bottom: 2px;">🏕️ OUTLIVE SURVIVAL CORE</div>
+    <div>STATE: <b id="locoStateTxt" style="color: #00cec9;">IDLE</b> | TENT: <b id="tentTierTxt" style="color: #f1c40f;">TIER 1</b></div>
+    <div>HP: <span id="hpVal">100</span>% | THIRST: <span id="thiVal">100</span>%</div>
+    <div class="bar-bg"><div id="hpBar" class="bar-fill" style="background: #ff4757; width: 100%;"></div></div>
+    <div>HUNGER: <span id="hunVal">100</span>% | STAMINA: <span id="nrgVal">100</span>%</div>
+    <div class="bar-bg"><div id="hunBar" class="bar-fill" style="background: #f39c12; width: 100%;"></div></div>
+    <div>FLASK: <b id="flaskTxt" style="color: #00cec9;">5/5</b> | POT: <b id="potStateTxt" style="color: #f1c40f;">PACKED</b></div>
+  </div>
+
+  <div id="saveToast">💾 PROGRESS AUTO-SAVED</div>
+
+  <!-- টপ নেভিগেশন বার -->
+  <div id="topNav">
+    <button class="nav-btn" id="btnOpenCraft">🔨 CRAFT</button>
+    <button class="nav-btn" id="btnOpenInv">🎒 BAG</button>
+    <button class="nav-btn" id="btnOpenGear">⚙️ GEAR</button>
+    <button class="nav-btn" id="btnOpenTentWorkshop" style="display: none; background: #16a085; color: #fff;">⛺ TENT WORKSHOP</button>
+    <button class="nav-btn" id="btnToggleEdit">🛠️ EDIT HUD</button>
+  </div>
+
+  <div id="editModeBanner">🛠️ HUD EDIT MODE ACTIVE: DRAG BUTTONS TO REPOSITION</div>
+
+  <div id="campPrompt" class="action-prompt">🔥 OPEN COOKING & PURIFIER FORGE</div>
+  <div id="doorPrompt" class="action-prompt">⛺ ENTER TENT ROOM</div>
+
+  <!-- জয়স্টিক -->
+  <div id="hud_joystick">
+    <div id="joyCenterBall"></div>
+    <div id="joyThumb"></div>
+  </div>
+
+  <!-- অ্যাকশন বাটনসমূহ -->
+  <div id="hud_attack" class="hud-element" data-key="atk" style="bottom: 20px; right: 20px; width: 56px; height: 56px; background: #d63031; border: 2px solid #ff7675; font-size: 11px;">
+    ⚔️ ATK
+  </div>
+  <div id="hud_mine" class="hud-element" data-key="mine" style="bottom: 84px; right: 20px; width: 52px; height: 52px; background: #e67e22; border: 2px solid #f39c12; font-size: 10px;">
+    ⛏️ MINE
+  </div>
+  <div id="hud_water" class="hud-element" data-key="water" style="bottom: 20px; right: 84px; width: 50px; height: 50px; background: #0984e3; border: 2px solid #74b9ff; font-size: 10px;">
+    💧 DRINK
+  </div>
+  <div id="hud_gather" class="hud-element" data-key="gather" style="bottom: 84px; right: 84px; width: 46px; height: 46px; background: #27ae60; border: 2px solid #2ecc71; font-size: 9px;">
+    🌿 PICK
+  </div>
+  <div id="hud_roll" class="hud-element" data-key="roll" style="bottom: 144px; right: 20px; width: 44px; height: 44px; background: #8e44ad; border: 2px solid #9b59b6; font-size: 9px;">
+    🔄 ROLL
+  </div>
+
+  <!-- ক্রাফটিং মোডাল -->
+  <div class="game-modal" id="craftingModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">SURVIVAL FABRICATOR</span>
+      <button class="close-btn" id="btnCloseCraft">✕</button>
+    </div>
+    <div class="craft-tabs">
+      <button class="craft-tab-btn active" id="tabSurvival" onclick="switchCraftTab('survival')">SURVIVAL</button>
+      <button class="craft-tab-btn" id="tabWeapons" onclick="switchCraftTab('weapons')">TOOLS</button>
+      <button class="craft-tab-btn" id="tabShelter" onclick="switchCraftTab('shelter')">SHELTER</button>
+    </div>
+    <div id="craftRecipeList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;"></div>
+  </div>
+
+  <!-- ইনভেন্টরি মোডাল -->
+  <div class="game-modal" id="inventoryModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">NEURAL BACKPACK</span>
+      <button class="close-btn" id="btnCloseInv">✕</button>
+    </div>
+    <div id="invGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; max-height: 180px; overflow-y: auto;"></div>
+    <div style="display: flex; gap: 8px;">
+      <button id="btnEatFood" style="flex: 1; background: #f39c12; border: none; border-radius: 6px; padding: 6px; font-weight: bold; cursor: pointer; color: #000; font-size: 11px;">EAT APPLE</button>
+      <button id="btnHealMed" style="flex: 1; background: #2ed573; border: none; border-radius: 6px; padding: 6px; font-weight: bold; cursor: pointer; color: #000; font-size: 11px;">HEAL</button>
+    </div>
+  </div>
+
+  <!-- গিয়ার মোডাল -->
+  <div class="game-modal" id="gearModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">GEAR & DEPLOYABLES</span>
+      <button class="close-btn" id="btnCloseGear">✕</button>
+    </div>
+    <div class="gear-card">
+      <div>
+        <div style="font-weight: bold; font-size: 11px;">⛺ Tactical Tent</div>
+        <div style="font-size: 9px; color: #a4b0be;" id="tentCardDesc">Deploy to rest inside cabin</div>
+      </div>
+      <button id="btnToggleTent" style="background: #00ffaa; border: none; padding: 5px 8px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000; font-size: 9px;">
+        DEPLOY (OPEN)
+      </button>
+    </div>
+    <div class="gear-card">
+      <div>
+        <div style="font-weight: bold; font-size: 11px;">🫖 Metal Cooking Pot</div>
+        <div style="font-size: 9px; color: #a4b0be;" id="potCardDesc">Mount on campfire to boil & cook</div>
+      </div>
+      <button id="btnTogglePot" style="background: #00ffaa; border: none; padding: 5px 8px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000; font-size: 9px;">
+        DEPLOY (OPEN)
+      </button>
+    </div>
+    <div class="gear-card">
+      <div>
+        <div style="font-weight: bold; font-size: 11px;">🧴 5-Charge Canteen Flask</div>
+        <div style="font-size: 9px; color: #a4b0be;">Holds pure boiled water</div>
+      </div>
+      <div id="gearFlaskCount" style="font-weight: bold; color: #00cec9; font-size: 11px;">5/5</div>
+    </div>
+  </div>
+
+  <!-- ৩-স্লট ক্যাম্পফায়ার মোডাল -->
+  <div class="game-modal" id="campModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">CAMPFIRE FORGE (3-SLOT)</span>
+      <button class="close-btn" id="btnCloseCamp">✕</button>
+    </div>
+    <div class="slot-row">
+      <div class="station-slot" id="slot1">
+        <div class="slot-label">SLOT 1 (POT)</div>
+        <div style="font-size: 14px;">🫖</div>
+        <div class="slot-val" id="slot1Val">Not Mounted</div>
+      </div>
+      <div class="station-slot slot-active" id="slot2">
+        <div class="slot-label">SLOT 2 (INPUT)</div>
+        <div style="font-size: 14px;" id="slot2Icon">❓</div>
+        <div class="slot-val" id="slot2Val">Select Input</div>
+      </div>
+      <div class="station-slot slot-active" id="slot3">
+        <div class="slot-label">SLOT 3 (FUEL)</div>
+        <div style="font-size: 14px;">🪵</div>
+        <div class="slot-val" id="slot3Val">1x Wood Ready</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+      <button id="btnSetWater" class="nav-btn" style="flex: 1;">💧 Raw Water</button>
+      <button id="btnSetMeat" class="nav-btn" style="flex: 1;">🥩 Raw Meat</button>
+    </div>
+    <div style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 6px; border: 1px solid #1f4a33; margin-bottom: 8px; text-align: center;">
+      <div id="recipeOutputTxt" style="font-size: 10px; font-weight: 800; color: #f1c40f;">Mount pot and choose ingredient</div>
+    </div>
+    <button id="btnProcessRecipe" style="width: 100%; background: #27ae60; border: none; padding: 8px; border-radius: 6px; color: #fff; font-weight: 800; cursor: pointer; font-size: 11px;">
+      🔥 IGNITE & PURIFY / COOK
+    </button>
+  </div>
+
+  <!-- টেন্ট আপগ্রেড ও হোমস্টেড ফার্নিচার মোডাল -->
+  <div class="game-modal" id="decorModal">
+    <div class="modal-head">
+      <span style="font-weight: 800; color: #00ffaa;">TENT HOMESTEAD & WORKSHOP</span>
+      <button class="close-btn" id="btnCloseDecor">✕</button>
+    </div>
+
+    <div style="background: rgba(22, 160, 133, 0.15); border: 1px solid #16a085; border-radius: 8px; padding: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-weight: bold; font-size: 11px; color: #1abc9c;">🏗️ Upgrade Tent Cabin (Tier 2)</div>
+        <div style="font-size: 9px; color: #bdc3c7;">Expands room area & luxury insulation (Cost: 6 Wood, 4 Iron)</div>
+      </div>
+      <button id="btnUpgradeTent" style="background: #e67e22; border: none; border-radius: 6px; padding: 6px 10px; color: #fff; font-weight: bold; font-size: 10px; cursor: pointer;">
+        UPGRADE
+      </button>
+    </div>
+
+    <div style="font-size: 10px; color: #a4b0be; margin-bottom: 6px;">FURNITURE & UTILITIES:</div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <button class="nav-btn" onclick="installItem('bed')" style="text-align: left;">🛏️ Install Survival Bed (Safe Sleep & HP)</button>
+      <button class="nav-btn" onclick="installItem('stove')" style="text-align: left;">🍳 Install Cookware Stove (Indoor Cooking)</button>
+      <button class="nav-btn" onclick="installItem('table')" style="text-align: left;">📖 Install Study Table (Research & Blueprints)</button>
+      <button class="nav-btn" onclick="installItem('box')" style="text-align: left;">📦 Install Inventory Box (+Storage Capacity)</button>
+      
+      <!-- ল্যাম্প অন/অফ বাটন -->
+      <div style="display: flex; gap: 6px;">
+        <button class="nav-btn" onclick="installItem('light')" style="flex: 2; text-align: left;">💡 Install Wall Lantern</button>
+        <button class="nav-btn" id="btnToggleLamp" style="flex: 1; background: #f39c12; color: #000;">💡 LAMP ON/OFF</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========================================================
+    // ১. টেরেইন ও স্লোপ
+    // ========================================================
+    function getTerrainHeight(x, z) {
+      const riverDist = Math.abs(x - 7 * Math.sin(z * 0.04));
+      if (riverDist < 15) return -3.0 + (riverDist / 15) * 2.0;
+      return Math.max(0, Math.sin(x * 0.03) * Math.cos(z * 0.03) * 10 + Math.sin(x * 0.08) * 3.5);
+    }
+
+    function getTerrainSlope(x, z) {
+      const delta = 0.5;
+      const h0 = getTerrainHeight(x, z);
+      const hx = getTerrainHeight(x + delta, z);
+      const hz = getTerrainHeight(x, z + delta);
+      return Math.hypot((hx - h0) / delta, (hz - h0) / delta);
+    }
+
+    // ========================================================
+    // ২. থ্রি.জেএস ৩ডি সিন
+    // ========================================================
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    document.getElementById("gameContainer").appendChild(renderer.domElement);
+
+    scene.fog = new THREE.FogExp2(0x0a1410, 0.007);
+    scene.add(new THREE.AmbientLight(0xd4edda, 0.5));
+
+    const sun = new THREE.DirectionalLight(0xfff4d6, 0.9);
+    sun.position.set(50, 80, 30);
+    scene.add(sun);
+
+    const mapSize = 340;
+    const terrainGeo = new THREE.PlaneGeometry(mapSize, mapSize, 50, 50);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const posAttr = terrainGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      posAttr.setY(i, getTerrainHeight(posAttr.getX(i), posAttr.getZ(i)));
+    }
+    terrainGeo.computeVertexNormals();
+    const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ color: 0x194d25, roughness: 0.85 }));
+    scene.add(terrain);
+
+    const waterLevel = -0.5;
+    const river = new THREE.Mesh(
+      new THREE.PlaneGeometry(mapSize, mapSize),
+      new THREE.MeshStandardMaterial({ color: 0x0abde3, roughness: 0.1, metalness: 0.7, transparent: true, opacity: 0.85 })
+    );
+    river.rotation.x = -Math.PI / 2;
+    river.position.set(0, waterLevel, 0);
+    scene.add(river);
+
+    // ট্যাপ-টু-মুভ রিং
+    const ringGeo = new THREE.RingGeometry(0.5, 0.8, 24);
+    ringGeo.rotateX(-Math.PI / 2);
+    const targetMarker = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x00ffaa, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+    targetMarker.visible = false;
+    scene.add(targetMarker);
+
+    const autoNav = { active: false, targetX: 0, targetZ: 0 };
+    const raycaster = new THREE.Raycaster();
+    const touchCoord = new THREE.Vector2();
+
+    // ক্যাম্পফায়ার
+    const campfire = new THREE.Group();
+    const firePit = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0x3d3d3d }));
+    campfire.add(firePit);
+
+    const potGroup = new THREE.Group();
+    const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.32, 0.42, 8), new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.85 }));
+    const potLid = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.08, 8), new THREE.MeshStandardMaterial({ color: 0x1a252f, metalness: 0.9 }));
+    potLid.position.y = 0.23;
+    potGroup.add(potBody); potGroup.add(potLid);
+    potGroup.position.y = 0.4;
+    potGroup.visible = false;
+    campfire.add(potGroup);
+
+    const fireLight = new THREE.PointLight(0xff6b00, 2.4, 20);
+    fireLight.position.set(0, 0.8, 0);
+    campfire.add(fireLight);
+    campfire.position.set(4.0, getTerrainHeight(4.0, 3), 3);
+    scene.add(campfire);
+
+    // আউটডোর টেন্ট
+    const outdoorTent = new THREE.Group();
+    const outerCanvas = new THREE.Mesh(new THREE.ConeGeometry(3.2, 3.4, 4), new THREE.MeshStandardMaterial({ color: 0x16a085, roughness: 0.8 }));
+    outerCanvas.position.y = 1.7; outerCanvas.rotation.y = Math.PI / 4;
+    outdoorTent.add(outerCanvas);
+    outdoorTent.visible = false;
+    scene.add(outdoorTent);
+
+    // টেন্টের ভেতরের ঘর (Walk-in Homestead Cabin)
+    const interiorRoomPos = new THREE.Vector3(800, 50, 800);
+    const interiorGroup = new THREE.Group();
+
+    // ফ্লোর ও শেল (Tier 1 ডিফল্ট)
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0x5a3825 }));
+    interiorGroup.add(floor);
+    const roomShell = new THREE.Mesh(new THREE.BoxGeometry(10, 5.0, 10), new THREE.MeshStandardMaterial({ color: 0x1abc9c, side: THREE.BackSide }));
+    roomShell.position.y = 2.5;
+    interiorGroup.add(roomShell);
+
+    // টেন্টের সিলিং লাইট
+    const roomLight = new THREE.PointLight(0xffbe76, 1.8, 18);
+    roomLight.position.set(0, 4.2, 0);
+    interiorGroup.add(roomLight);
+
+    interiorGroup.position.copy(interiorRoomPos);
+    scene.add(interiorGroup);
+
+    // মাইনিং নোডস
+    const oreNodes = [];
+    const oreTypes = [
+      { type: 'iron', name: 'Iron Ore', color: 0x7f8c8d, drops: 'iron_ore', hp: 3 },
+      { type: 'gold', name: 'Gold Vein', color: 0xf1c40f, drops: 'gold_ore', hp: 4 },
+      { type: 'crystal', name: 'Quantum Crystal', color: 0x00d2d3, drops: 'crystals', hp: 5 }
+    ];
+    for (let i = 0; i < 30; i++) {
+      const ox = (Math.random() - 0.5) * 260;
+      const oz = (Math.random() - 0.5) * 260;
+      if (Math.abs(ox) < 16) continue;
+      const tmpl = oreTypes[i % oreTypes.length];
+      const oy = getTerrainHeight(ox, oz);
+      const oreMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.3), new THREE.MeshStandardMaterial({ color: tmpl.color, metalness: 0.8 }));
+      oreMesh.position.set(ox, oy + 0.8, oz);
+      scene.add(oreMesh);
+      oreNodes.push({ mesh: oreMesh, name: tmpl.name, drops: tmpl.drops, hp: tmpl.hp, maxHp: tmpl.hp });
+    }
+
+    // ========================================================
+    // ৩. ক্যারেক্টার অবতার রিগ
+    // ========================================================
+    const player = new THREE.Group();
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf3c59a });
+    const clothMat = new THREE.MeshStandardMaterial({ color: 0x243342 });
+
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), skinMat);
+    pHead.position.y = 2.35; player.add(pHead);
+    const pChest = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.34, 1.0, 8), clothMat);
+    pChest.position.y = 1.6; player.add(pChest);
+
+    const pLeftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), skinMat);
+    pLeftArm.position.set(-0.55, 1.5, 0);
+    const pRightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.9, 6), skinMat);
+    pRightArm.position.set(0.55, 1.5, 0);
+    player.add(pLeftArm); player.add(pRightArm);
+
+    const pickShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x5a3d28 }));
+    const pickHead = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.14), new THREE.MeshStandardMaterial({ color: 0xbdc3c7, metalness: 0.9 }));
+    pickHead.position.y = 0.7; pickShaft.add(pickHead);
+    pickShaft.rotation.x = Math.PI / 2; pickShaft.position.set(0, -0.2, 0.6);
+    pRightArm.add(pickShaft);
+
+    const pLeftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 1.1, 6), clothMat);
+    pLeftLeg.position.set(-0.22, 0.6, 0);
+    const pRightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 1.1, 6), clothMat);
+    pRightLeg.position.set(0.22, 0.6, 0);
+    player.add(pLeftLeg); player.add(pRightLeg);
+
+    player.position.set(0, getTerrainHeight(0, 4), 4);
+    scene.add(player);
+
+    const limbs = { head: pHead, chest: pChest, leftArm: pLeftArm, rightArm: pRightArm, leftLeg: pLeftLeg, rightLeg: pRightLeg };
+
+    // ========================================================
+    // ৪. লোকোমোশন ও ৮-মুখী জয়স্টিক ফিজিক্স
+    // ========================================================
+    const Locomotion = {
+      state: 'IDLE', currentSpeed: 0, rollTime: 0, isRolling: false, cycleTime: 0
+    };
+
+    const joyState = { x: 0, y: 0, active: false, magnitude: 0, angle: 0 };
+    const joyBase = document.getElementById("hud_joystick");
+    const joyThumb = document.getElementById("joyThumb");
+    let joyTouchId = null, joyCenter = { x: 0, y: 0 };
+
+    joyBase.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      autoNav.active = false; targetMarker.visible = false;
+      const t = e.changedTouches[0]; joyTouchId = t.identifier;
+      const rect = joyBase.getBoundingClientRect();
+      joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (joyTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === joyTouchId) {
+          let dx = t.clientX - joyCenter.x;
+          let dy = t.clientY - joyCenter.y;
+          const dist = Math.hypot(dx, dy);
+          const maxRadius = 40;
+
+          if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+          }
+
+          joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+          joyState.x = dx / maxRadius;
+          joyState.y = -dy / maxRadius; // নেগেটিভ dy দিয়ে ইনভার্সন ফিক্সড
+          joyState.magnitude = Math.min(1.0, dist / maxRadius);
+          joyState.active = joyState.magnitude > 0.08;
+          joyState.angle = Math.atan2(joyState.x, joyState.y);
+          break;
+        }
+      }
+    }, { passive: false });
+
+    const endJoy = () => {
+      joyTouchId = null;
+      joyThumb.style.transform = "translate(0px, 0px)";
+      joyState.x = 0; joyState.y = 0; joyState.magnitude = 0; joyState.active = false;
+    };
+    window.addEventListener("touchend", endJoy);
+    window.addEventListener("touchcancel", endJoy);
+
+    function triggerRoll() {
+      if (Locomotion.isRolling || Locomotion.state === 'SWIM' || Locomotion.state === 'CLIMB') return;
+      Locomotion.isRolling = true; Locomotion.rollTime = 0;
+    }
+    document.getElementById("hud_roll").onclick = triggerRoll;
+
+    // ========================================================
+    // ৫. ইনভেন্টরি, আপগ্রেড ও ফার্নিচার স্টেট
+    // ========================================================
+    window.InventoryState = {
+      slots: { wood: 14, stone: 10, iron_ore: 6, gold_ore: 2, crystals: 1, apples: 5, raw_meat: 4, bandage: 2 }
+    };
+
+    window.MasterCraftingData = {
+      survival: {
+        campfire: { name: "Campfire", cost: { wood: 4, stone: 2 } },
+        water_purifier: { name: "Water Condenser", cost: { wood: 3, iron_ore: 1 } },
+        bandage: { name: "Medical Bandage", cost: { wood: 1, apples: 2 } }
+      },
+      weapons: {
+        spear: { name: "Hunting Spear", cost: { wood: 4, stone: 2 } },
+        iron_axe: { name: "Heavy Axe", cost: { wood: 3, iron_ore: 3 } }
+      },
+      shelter: {
+        tent: { name: "Expedition Tent", cost: { wood: 6, stone: 4 } },
+        barricade: { name: "Wood Barricade", cost: { wood: 8 } }
+      }
+    };
+
+    const Survival = {
+      hp: 100, hunger: 100, thirst: 100, stamina: 100,
+      flaskCharges: 5, hasRawWater: false,
+      isPotOpen: false, isTentOpen: false, isInsideTent: false,
+      tentTier: 1, lampOn: true
+    };
+
+    let selectedSlot2 = null;
+    const installed = { bed: null, stove: null, table: null, box: null, light: null };
+
+    // ========================================================
+    // ৬. টেন্ট আপগ্রেড, ল্যাম্প অন/অফ ও ফার্নিচার ইন্সটলেশন
+    // ========================================================
+    const btnUpgradeTent = document.getElementById("btnUpgradeTent");
+    btnUpgradeTent.onclick = () => {
+      if (Survival.tentTier >= 2) {
+        alert("✨ Your Tent Cabin is already upgraded to MAX Tier 2!");
+        return;
+      }
+      const woodCount = window.InventoryState.slots.wood || 0;
+      const ironCount = window.InventoryState.slots.iron_ore || 0;
+
+      if (woodCount >= 6 && ironCount >= 4) {
+        window.InventoryState.slots.wood -= 6;
+        window.InventoryState.slots.iron_ore -= 4;
+        Survival.tentTier = 2;
+
+        // রুম বড় করা ও ওয়াল আপগ্রেড (14x14 ফ্লোর)
+        floor.scale.set(1.4, 1.0, 1.4);
+        roomShell.scale.set(1.4, 1.1, 1.4);
+        roomShell.material.color.setHex(0x16a085); // লাক্সারি রিইনফোর্সড কালার
+        outerCanvas.scale.set(1.35, 1.25, 1.35);
+
+        document.getElementById("tentTierTxt").innerText = "TIER 2 (MAX)";
+        document.getElementById("tentTierTxt").style.color = "#2ecc71";
+        btnUpgradeTent.innerText = "MAX TIER";
+        btnUpgradeTent.style.background = "#27ae60";
+
+        renderInventoryGrid();
+        updateHud();
+        autoSaveGameProgress();
+        alert("🎉 CONGRATULATIONS!\nTent Upgraded to TIER 2: Spacious Floor & Reinforced Armor Walls!");
+      } else {
+        alert("❌ Need 6x Wood and 4x Iron Ore to upgrade Tent!");
+      }
+    };
+
+    // ল্যাম্প অন/অফ টগল
+    const btnToggleLamp = document.getElementById("btnToggleLamp");
+    btnToggleLamp.onclick = () => {
+      Survival.lampOn = !Survival.lampOn;
+      roomLight.intensity = Survival.lampOn ? 2.2 : 0.05;
+      if (installed.light) {
+        installed.light.children[0].intensity = Survival.lampOn ? 2.5 : 0;
+      }
+      btnToggleLamp.innerText = Survival.lampOn ? "💡 LAMP: ON" : "🌑 LAMP: OFF";
+      btnToggleLamp.style.background = Survival.lampOn ? "#f39c12" : "#7f8c8d";
+      autoSaveGameProgress();
+    };
+
+    window.installItem = function(type, isSilent = false) {
+      if (!Survival.isInsideTent && !isSilent) {
+        alert("⚠️ You must be inside the Tent Cabin to furnish!");
+        return;
+      }
+      if (installed[type] && !isSilent) { alert(`Already installed ${type}!`); return; }
+      if (installed[type]) return;
+
+      if (type === 'bed') {
+        const bed = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.4, 1.4), new THREE.MeshStandardMaterial({ color: 0x34495e }));
+        bed.position.set(interiorRoomPos.x - 3.2, interiorRoomPos.y + 0.3, interiorRoomPos.z - 3.0);
+        scene.add(bed); installed.bed = bed;
+        if (!isSilent) alert("🛏️ Survival Bed Installed! Sleep safely.");
+      } else if (type === 'stove') {
+        const stove = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 1.2), new THREE.MeshStandardMaterial({ color: 0x2c3e50 }));
+        stove.position.set(interiorRoomPos.x + 3.2, interiorRoomPos.y + 0.5, interiorRoomPos.z - 3.0);
+        scene.add(stove); installed.stove = stove;
+        if (!isSilent) alert("🍳 Cookware Stove Installed! Indoor Cooking unlocked.");
+      } else if (type === 'table') {
+        const table = new THREE.Group();
+        const top = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.15, 1.2), new THREE.MeshStandardMaterial({ color: 0x8e44ad }));
+        top.position.y = 1.0; table.add(top);
+        const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.0), new THREE.MeshStandardMaterial({ color: 0x2c3e50 }));
+        leg1.position.set(-0.8, 0.5, -0.45); table.add(leg1);
+        const leg2 = leg1.clone(); leg2.position.set(0.8, 0.5, -0.45); table.add(leg2);
+        const leg3 = leg1.clone(); leg3.position.set(-0.8, 0.5, 0.45); table.add(leg3);
+        const leg4 = leg1.clone(); leg4.position.set(0.8, 0.5, 0.45); table.add(leg4);
+        table.position.set(interiorRoomPos.x + 3.2, interiorRoomPos.y + 0.1, interiorRoomPos.z + 1.8);
+        scene.add(table); installed.table = table;
+        if (!isSilent) alert("📖 Study Table Installed! Blueprint & Quest Analysis Station ready.");
+      } else if (type === 'box') {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.0), new THREE.MeshStandardMaterial({ color: 0x795548 }));
+        box.position.set(interiorRoomPos.x - 3.2, interiorRoomPos.y + 0.5, interiorRoomPos.z + 2.0);
+        scene.add(box); installed.box = box;
+        if (!isSilent) alert("📦 Inventory Storage Box Installed!");
+      } else if (type === 'light') {
+        const lanternMesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0xf1c40f }));
+        const lLight = new THREE.PointLight(0xf1c40f, 2.5, 15);
+        lanternMesh.add(lLight);
+        lanternMesh.position.set(interiorRoomPos.x, interiorRoomPos.y + 3.6, interiorRoomPos.z);
+        scene.add(lanternMesh); installed.light = lanternMesh;
+        if (!isSilent) alert("💡 Wall Lantern Installed!");
+      }
+      document.getElementById("decorModal").style.display = "none";
+      if (!isSilent) autoSaveGameProgress();
+    };
+
+    // ========================================================
+    // ৭. পারসিস্টেন্ট অটো-সেভ ও রিস্টোর
+    // ========================================================
+    const SAVE_KEY = "outlive_survival_savegame";
+
+    function showSaveToast(text = "💾 PROGRESS AUTO-SAVED") {
+      const toast = document.getElementById("saveToast");
+      if (!toast) return;
+      toast.innerText = text;
+      toast.style.display = "block";
+      setTimeout(() => { toast.style.display = "none"; }, 1800);
+    }
+
+    function autoSaveGameProgress() {
+      const saveData = {
+        player: { x: player.position.x, y: player.position.y, z: player.position.z, rotY: player.rotation.y },
+        survival: {
+          hp: Survival.hp, hunger: Survival.hunger, thirst: Survival.thirst, stamina: Survival.stamina,
+          flaskCharges: Survival.flaskCharges, hasRawWater: Survival.hasRawWater,
+          isPotOpen: Survival.isPotOpen, isTentOpen: Survival.isTentOpen, isInsideTent: Survival.isInsideTent,
+          tentTier: Survival.tentTier, lampOn: Survival.lampOn
+        },
+        tentPos: { x: outdoorTent.position.x, y: outdoorTent.position.y, z: outdoorTent.position.z },
+        inventory: window.InventoryState.slots,
+        decor: {
+          bed: !!installed.bed, stove: !!installed.stove, table: !!installed.table,
+          box: !!installed.box, light: !!installed.light
+        }
+      };
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+        showSaveToast("💾 PROGRESS AUTO-SAVED");
+      } catch (e) {}
+    }
+
+    function loadGameProgress() {
+      const savedStr = localStorage.getItem(SAVE_KEY);
+      if (!savedStr) return false;
+      try {
+        const data = JSON.parse(savedStr);
+        if (data.player) {
+          player.position.set(data.player.x, data.player.y, data.player.z);
+          player.rotation.y = data.player.rotY || 0;
+        }
+        if (data.survival) {
+          Survival.hp = data.survival.hp ?? 100;
+          Survival.hunger = data.survival.hunger ?? 100;
+          Survival.thirst = data.survival.thirst ?? 100;
+          Survival.stamina = data.survival.stamina ?? 100;
+          Survival.flaskCharges = data.survival.flaskCharges ?? 5;
+          Survival.hasRawWater = !!data.survival.hasRawWater;
+          Survival.isPotOpen = !!data.survival.isPotOpen;
+          Survival.isTentOpen = !!data.survival.isTentOpen;
+          Survival.isInsideTent = !!data.survival.isInsideTent;
+          Survival.tentTier = data.survival.tentTier ?? 1;
+          Survival.lampOn = data.survival.lampOn ?? true;
+        }
+        if (data.inventory) window.InventoryState.slots = Object.assign(window.InventoryState.slots, data.inventory);
+
+        if (Survival.tentTier === 2) {
+          floor.scale.set(1.4, 1.0, 1.4);
+          roomShell.scale.set(1.4, 1.1, 1.4);
+          roomShell.material.color.setHex(0x16a085);
+          outerCanvas.scale.set(1.35, 1.25, 1.35);
+          document.getElementById("tentTierTxt").innerText = "TIER 2 (MAX)";
+          document.getElementById("tentTierTxt").style.color = "#2ecc71";
+        }
+
+        roomLight.intensity = Survival.lampOn ? 2.2 : 0.05;
+
+        if (data.tentPos && Survival.isTentOpen) {
+          outdoorTent.position.set(data.tentPos.x, data.tentPos.y, data.tentPos.z);
+          outdoorTent.visible = true;
+          document.getElementById("btnToggleTent").innerText = "PACK UP (CLOSE)";
+          document.getElementById("btnToggleTent").style.background = "#e74c3c";
+          document.getElementById("btnToggleTent").style.color = "#fff";
+        }
+
+        if (Survival.isPotOpen) {
+          potGroup.visible = true;
+          potLid.position.y = 0.45; potLid.rotation.z = 0.3;
+          document.getElementById("btnTogglePot").innerText = "PACK UP (CLOSE)";
+          document.getElementById("btnTogglePot").style.background = "#e74c3c";
+          document.getElementById("btnTogglePot").style.color = "#fff";
+        }
+
+        if (data.decor) {
+          if (data.decor.bed) installItem('bed', true);
+          if (data.decor.stove) installItem('stove', true);
+          if (data.decor.table) installItem('table', true);
+          if (data.decor.box) installItem('box', true);
+          if (data.decor.light) installItem('light', true);
+        }
+
+        showSaveToast("🔄 GAME STATE RESTORED");
+        return true;
+      } catch (e) { return false; }
+    }
+
+    setInterval(autoSaveGameProgress, 5000);
+    window.addEventListener("beforeunload", autoSaveGameProgress);
+
+    // ========================================================
+    // ৮. ইউজার ইন্টারঅ্যাকশন ও মোডাল লিসেনার্স
+    // ========================================================
+    function checkNearRiver() {
+      const rDist = Math.abs(player.position.x - 7 * Math.sin(player.position.z * 0.04));
+      return rDist < 16 && !Survival.isInsideTent;
+    }
+
+    function checkNearCampfire() {
+      return player.position.distanceTo(campfire.position) < 4.0;
+    }
+
+    function updateHud() {
+      document.getElementById("hpVal").innerText = Math.round(Survival.hp);
+      document.getElementById("hpBar").style.width = Survival.hp + "%";
+      document.getElementById("thiVal").innerText = Math.round(Survival.thirst);
+      document.getElementById("hunVal").innerText = Math.round(Survival.hunger);
+      document.getElementById("hunBar").style.width = Survival.hunger + "%";
+      document.getElementById("nrgVal").innerText = Math.round(Survival.stamina);
+
+      document.getElementById("flaskTxt").innerText = Survival.flaskCharges === 0 ? "EMPTY (0/5)" : `${Survival.flaskCharges}/5`;
+      document.getElementById("gearFlaskCount").innerText = `${Survival.flaskCharges}/5`;
+      document.getElementById("potStateTxt").innerText = Survival.isPotOpen ? "OPEN 🫖" : "PACKED 🎒";
+      document.getElementById("potStateTxt").style.color = Survival.isPotOpen ? "#2ecc71" : "#f1c40f";
+
+      document.getElementById("locoStateTxt").innerText = Locomotion.state;
+
+      const btnWater = document.getElementById("hud_water");
+      if (checkNearRiver() && !Survival.hasRawWater) {
+        btnWater.innerText = "🫖 SCOOP";
+        btnWater.style.background = "#16a085";
+      } else {
+        btnWater.innerText = "💧 DRINK";
+        btnWater.style.background = "#0984e3";
+      }
+
+      const s1 = document.getElementById("slot1");
+      const s1Val = document.getElementById("slot1Val");
+      if (Survival.isPotOpen) {
+        s1.classList.add("slot-active");
+        s1Val.innerText = "Pot Mounted";
+        s1Val.style.color = "#2ecc71";
+      } else {
+        s1.classList.remove("slot-active");
+        s1Val.innerText = "CLOSED/PACKED";
+        s1Val.style.color = "#e74c3c";
+      }
+
+      // টেন্টের ভেতর থাকলে ওয়ার্কশপ বাটন দৃশ্যমান হবে
+      document.getElementById("btnOpenTentWorkshop").style.display = Survival.isInsideTent ? "block" : "none";
+    }
+
+    let activeCraftTab = "survival";
+    function switchCraftTab(tab) {
+      activeCraftTab = tab;
+      document.querySelectorAll(".craft-tab-btn").forEach(b => b.classList.toggle("active", b.id.toLowerCase().includes(tab)));
+      renderCraftUI();
+    }
+
+    function renderCraftUI() {
+      const list = document.getElementById("craftRecipeList");
+      if (!list) return;
+      list.innerHTML = "";
+      const recipes = window.MasterCraftingData[activeCraftTab] || {};
+      Object.keys(recipes).forEach(key => {
+        const item = recipes[key];
+        let canAfford = true;
+        let costTxt = Object.keys(item.cost).map(m => {
+          const has = window.InventoryState.slots[m] || 0;
+          if (has < item.cost[m]) canAfford = false;
+          return `${m}: ${has}/${item.cost[m]}`;
+        }).join(" | ");
+
+        const row = document.createElement("div");
+        row.style.cssText = `background: rgba(14,35,24,0.9); border: 1px solid ${canAfford ? "#00ffaa" : "#244d36"}; border-radius: 8px; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;`;
+        row.innerHTML = `
+          <div>
+            <div style="font-weight: 700; font-size: 10px;">${item.name}</div>
+            <div style="font-size: 8px; color: ${canAfford ? "#2ed573" : "#ff4757"}; font-weight: bold;">${costTxt}</div>
+          </div>
+          <button style="background: ${canAfford ? "#00b894" : "#2d543e"}; border: none; border-radius: 6px; color: #fff; font-weight: bold; font-size: 9px; padding: 5px 8px; cursor: ${canAfford ? "pointer" : "not-allowed"};" ${canAfford ? "" : "disabled"}>CRAFT</button>
+        `;
+        if (canAfford) {
+          row.querySelector("button").onclick = () => {
+            for (let m in item.cost) window.InventoryState.slots[m] -= item.cost[m];
+            window.InventoryState.slots[key] = (window.InventoryState.slots[key] || 0) + 1;
+            renderCraftUI();
+            renderInventoryGrid();
+            autoSaveGameProgress();
+          };
+        }
+        list.appendChild(row);
+      });
+    }
+
+    function renderInventoryGrid() {
+      const grid = document.getElementById("invGrid");
+      if (!grid) return;
+      grid.innerHTML = "";
+      Object.keys(window.InventoryState.slots).forEach(k => {
+        const count = window.InventoryState.slots[k];
+        const slot = document.createElement("div");
+        slot.style.cssText = `background: rgba(255,255,255,0.06); border: 1px solid #1f4a33; border-radius: 6px; padding: 4px 0; text-align: center;`;
+        slot.innerHTML = `<div style="font-size: 8px; font-weight: bold; color: #fff;">${k.replace('_', ' ').toUpperCase()}</div><div style="font-size: 10px; color: #00ffaa;">${count}</div>`;
+        grid.appendChild(slot);
+      });
+    }
+
+    const btnTogglePot = document.getElementById("btnTogglePot");
+    btnTogglePot.onclick = () => {
+      if (!Survival.isPotOpen) {
+        if (!checkNearCampfire()) {
+          alert("⚠️ Stand near Campfire to mount and open Metal Pot!");
+          return;
+        }
+        Survival.isPotOpen = true;
+        potGroup.visible = true;
+        potLid.position.y = 0.45; potLid.rotation.z = 0.3;
+        btnTogglePot.innerText = "PACK UP (CLOSE)";
+        btnTogglePot.style.background = "#e74c3c"; btnTogglePot.style.color = "#fff";
+        updateHud();
+        alert("🫖 Metal Pot Mounted on Campfire & Opened!");
+      } else {
+        Survival.isPotOpen = false;
+        potGroup.visible = false;
+        potLid.position.y = 0.23; potLid.rotation.z = 0;
+        btnTogglePot.innerText = "DEPLOY (OPEN)";
+        btnTogglePot.style.background = "#00ffaa"; btnTogglePot.style.color = "#000";
+        updateHud();
+        alert("🎒 Metal Pot closed and stored in Gear bag!");
+      }
+      document.getElementById("gearModal").style.display = "none";
+      autoSaveGameProgress();
+    };
+
+    const btnToggleTent = document.getElementById("btnToggleTent");
+    btnToggleTent.onclick = () => {
+      if (!Survival.isTentOpen) {
+        outdoorTent.position.set(player.position.x + 3.0, getTerrainHeight(player.position.x + 3.0, player.position.z), player.position.z);
+        outdoorTent.visible = true;
+        Survival.isTentOpen = true;
+        btnToggleTent.innerText = "PACK UP (CLOSE)";
+        btnToggleTent.style.background = "#e74c3c"; btnToggleTent.style.color = "#fff";
+        alert("⛺ Tent Deployed on field!");
+      } else {
+        if (Survival.isInsideTent) {
+          alert("⚠️ Exit to wilderness before folding the tent!");
+          return;
+        }
+        outdoorTent.visible = false;
+        Survival.isTentOpen = false;
+        btnToggleTent.innerText = "DEPLOY (OPEN)";
+        btnToggleTent.style.background = "#00ffaa"; btnToggleTent.style.color = "#000";
+        alert("🎒 Tent Folded into Bag!");
+      }
+      document.getElementById("gearModal").style.display = "none";
+      autoSaveGameProgress();
+    };
+
+    const doorPrompt = document.getElementById("doorPrompt");
+    doorPrompt.onclick = () => {
+      if (!Survival.isInsideTent) {
+        Survival.isInsideTent = true;
+        player.position.set(interiorRoomPos.x, interiorRoomPos.y + 0.4, interiorRoomPos.z + 3.0);
+      } else {
+        Survival.isInsideTent = false;
+        player.position.set(outdoorTent.position.x, getTerrainHeight(outdoorTent.position.x, outdoorTent.position.z + 3.2), outdoorTent.position.z + 3.2);
+      }
+      updateHud();
+      autoSaveGameProgress();
+    };
+
+    document.getElementById("btnSetWater").onclick = () => {
+      selectedSlot2 = 'WATER';
+      document.getElementById("slot2Icon").innerText = "💧";
+      document.getElementById("slot2Val").innerText = "Raw River Water";
+      document.getElementById("recipeOutputTxt").innerText = "Open Pot + Raw Water + 1x Wood ➔ 5x PURE BOILED WATER ✨";
+      document.getElementById("recipeOutputTxt").style.color = "#00d2d3";
+    };
+
+    document.getElementById("btnSetMeat").onclick = () => {
+      selectedSlot2 = 'MEAT';
+      document.getElementById("slot2Icon").innerText = "🥩";
+      document.getElementById("slot2Val").innerText = "Raw Meat";
+      document.getElementById("recipeOutputTxt").innerText = "Open Pot + Raw Meat + 1x Wood ➔ DELICIOUS COOKED STEAK 🍖";
+      document.getElementById("recipeOutputTxt").style.color = "#2ecc71";
+    };
+
+    document.getElementById("btnProcessRecipe").onclick = () => {
+      if (!Survival.isPotOpen) { alert("❌ Metal Pot is CLOSED! Mount it first."); return; }
+      if ((window.InventoryState.slots.wood || 0) < 1) { alert("❌ Need at least 1x Wood!"); return; }
+      if (!selectedSlot2) { alert("⚠️ Choose ingredient for Slot 2!"); return; }
+
+      if (selectedSlot2 === 'WATER') {
+        if (!Survival.hasRawWater) { alert("❌ No river water in pot!"); return; }
+        window.InventoryState.slots.wood--;
+        Survival.hasRawWater = false;
+        Survival.flaskCharges = 5;
+        updateHud(); renderInventoryGrid();
+        alert("🔥 Water Boiled! Pure water filled into Flask (5/5)!");
+        document.getElementById("campModal").style.display = "none";
+      } else if (selectedSlot2 === 'MEAT') {
+        if ((window.InventoryState.slots.raw_meat || 0) < 1) { alert("❌ No Raw Meat in inventory!"); return; }
+        window.InventoryState.slots.wood--;
+        window.InventoryState.slots.raw_meat--;
+        Survival.hp = Math.min(100, Survival.hp + 35);
+        Survival.hunger = Math.min(100, Survival.hunger + 40);
+        updateHud(); renderInventoryGrid();
+        alert("🍖 Sizzling Steak Cooked! +35 HP & +40 Hunger Restored!");
+        document.getElementById("campModal").style.display = "none";
+      }
+      autoSaveGameProgress();
+    };
+
+    document.getElementById("campPrompt").onclick = () => { document.getElementById("campModal").style.display = "block"; updateHud(); };
+    document.getElementById("btnCloseCamp").onclick = () => document.getElementById("campModal").style.display = "none";
+
+    document.getElementById("hud_water").onclick = () => {
+      if (checkNearRiver() && !Survival.hasRawWater) {
+        Survival.hasRawWater = true; updateHud();
+        alert("🫖 Scooped raw river water into pot!");
+        return;
+      }
+      if (Survival.flaskCharges > 0) {
+        Survival.flaskCharges--;
+        Survival.thirst = Math.min(100, Survival.thirst + 25);
+        updateHud();
+        alert(`💧 Drank purified water! (${Survival.flaskCharges}/5 left)`);
+      } else {
+        alert("❌ Flask is EMPTY! Boil river water in pot to refill.");
+      }
+      autoSaveGameProgress();
+    };
+
+    let currentNearestOre = null;
+    document.getElementById("hud_mine").onclick = () => {
+      limbs.rightArm.rotation.x = -Math.PI / 1.4;
+      setTimeout(() => { limbs.rightArm.rotation.x = 0; }, 160);
+      if (currentNearestOre) {
+        currentNearestOre.hp--;
+        if (currentNearestOre.hp <= 0) {
+          const drop = currentNearestOre.drops;
+          window.InventoryState.slots[drop] = (window.InventoryState.slots[drop] || 0) + 3;
+          currentNearestOre.mesh.position.y = -40;
+          renderInventoryGrid();
+          alert(`⛏️ Mined 3x ${drop.toUpperCase()}!`);
+          autoSaveGameProgress();
+        }
+      }
+    };
+
+    document.getElementById("hud_attack").onclick = () => {
+      limbs.rightArm.rotation.x = -Math.PI / 1.6;
+      setTimeout(() => { limbs.rightArm.rotation.x = 0; }, 140);
+    };
+
+    document.getElementById("hud_gather").onclick = () => {
+      window.InventoryState.slots.wood = (window.InventoryState.slots.wood || 0) + 2;
+      window.InventoryState.slots.apples = (window.InventoryState.slots.apples || 0) + 1;
+      renderInventoryGrid();
+      alert("🌿 Gathered +2 Wood & +1 Apple!");
+      autoSaveGameProgress();
+    };
+
+    document.getElementById("btnOpenCraft").onclick = () => { document.getElementById("craftingModal").style.display = "block"; renderCraftUI(); };
+    document.getElementById("btnCloseCraft").onclick = () => document.getElementById("craftingModal").style.display = "none";
+    document.getElementById("btnOpenInv").onclick = () => { document.getElementById("inventoryModal").style.display = "block"; renderInventoryGrid(); };
+    document.getElementById("btnCloseInv").onclick = () => document.getElementById("inventoryModal").style.display = "none";
+    document.getElementById("btnOpenGear").onclick = () => document.getElementById("gearModal").style.display = "block";
+    document.getElementById("btnCloseGear").onclick = () => document.getElementById("gearModal").style.display = "none";
+
+    document.getElementById("btnOpenTentWorkshop").onclick = () => document.getElementById("decorModal").style.display = "block";
+    document.getElementById("btnCloseDecor").onclick = () => document.getElementById("decorModal").style.display = "none";
+
+    document.getElementById("btnEatFood").onclick = () => {
+      if ((window.InventoryState.slots.apples || 0) > 0) {
+        window.InventoryState.slots.apples--;
+        Survival.hunger = Math.min(100, Survival.hunger + 25);
+        renderInventoryGrid(); updateHud(); autoSaveGameProgress();
+      }
+    };
+    document.getElementById("btnHealMed").onclick = () => {
+      if ((window.InventoryState.slots.bandage || 0) > 0) {
+        window.InventoryState.slots.bandage--;
+        Survival.hp = Math.min(100, Survival.hp + 35);
+        renderInventoryGrid(); updateHud(); autoSaveGameProgress();
+      }
+    };
+
+    // HUD এডিটর
+    let isEditingHud = false;
+    const hudEls = document.querySelectorAll(".hud-element");
+    document.getElementById("btnToggleEdit").onclick = () => {
+      isEditingHud = !isEditingHud;
+      document.getElementById("btnToggleEdit").innerText = isEditingHud ? "💾 SAVE HUD" : "🛠️ EDIT HUD";
+      document.getElementById("editModeBanner").style.display = isEditingHud ? "block" : "none";
+      hudEls.forEach(el => el.classList.toggle("editing-border", isEditingHud));
+    };
+
+    hudEls.forEach(el => {
+      let dragId = null, offset = { x: 0, y: 0 };
+      el.addEventListener("touchstart", (e) => {
+        if (!isEditingHud) return;
+        e.stopPropagation();
+        const t = e.changedTouches[0]; dragId = t.identifier;
+        const rect = el.getBoundingClientRect();
+        offset.x = t.clientX - rect.left; offset.y = t.clientY - rect.top;
+      }, { passive: false });
+
+      window.addEventListener("touchmove", (e) => {
+        if (!isEditingHud || dragId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === dragId) {
+            let x = Math.max(5, Math.min(window.innerWidth - el.offsetWidth - 5, t.clientX - offset.x));
+            let y = Math.max(5, Math.min(window.innerHeight - el.offsetHeight - 5, t.clientY - offset.y));
+            el.style.left = `${x}px`; el.style.top = `${y}px`;
+            el.style.right = "auto"; el.style.bottom = "auto";
+            break;
+          }
+        }
+      }, { passive: false });
+
+      window.addEventListener("touchend", () => { dragId = null; });
+    });
+
+    // ========================================================
+    // ৯. ক্যামেরা ও ট্যাপ-টু-মুভ
+    // ========================================================
+    const cameraLook = { yaw: 0, pitch: 0.35, distance: 12.0 };
+    let lookId = null, lastX = 0, lastY = 0, touchStartTime = 0, touchStartPos = { x: 0, y: 0 };
+
+    window.addEventListener("touchstart", (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const target = document.elementFromPoint(t.clientX, t.clientY);
+        const isUI = target && (target.closest("#hud_joystick") || target.closest(".hud-element") || target.closest("#topNav") || target.closest("#hud") || target.closest(".action-prompt") || target.closest(".game-modal"));
+        if (!isUI && lookId === null) {
+          lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+          touchStartTime = performance.now(); touchStartPos = { x: t.clientX, y: t.clientY };
+          break;
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener("touchmove", (e) => {
+      if (lookId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === lookId) {
+          cameraLook.yaw -= (t.clientX - lastX) * 0.0075;
+          cameraLook.pitch = Math.max(0.08, Math.min(1.2, cameraLook.pitch + (t.clientY - lastY) * 0.005));
+          lastX = t.clientX; lastY = t.clientY;
+          break;
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener("touchend", (e) => {
+      if (lookId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === lookId) {
+          const duration = performance.now() - touchStartTime;
+          const dist = Math.hypot(t.clientX - touchStartPos.x, t.clientY - touchStartPos.y);
+          if (duration < 280 && dist < 10) {
+            touchCoord.x = (t.clientX / window.innerWidth) * 2 - 1;
+            touchCoord.y = -(t.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(touchCoord, camera);
+            const hits = raycaster.intersectObjects([terrain, river]);
+            if (hits.length > 0) {
+              autoNav.active = true;
+              autoNav.targetX = hits[0].point.x;
+              autoNav.targetZ = hits[0].point.z;
+              targetMarker.position.set(autoNav.targetX, Math.max(waterLevel + 0.1, hits[0].point.y + 0.1), autoNav.targetZ);
+              targetMarker.visible = true;
+            }
+          }
+          lookId = null;
+          break;
+        }
+      }
+    });
+
+    // ========================================================
+    // ১০. মাস্টার ৬০ FPS গেম লুপ
+    // ========================================================
+    const clock = new THREE.Clock();
+
+    function gameLoop() {
+      requestAnimationFrame(gameLoop);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      Survival.thirst = Math.max(0, Survival.thirst - dt * 0.35);
+      Survival.hunger = Math.max(0, Survival.hunger - dt * 0.25);
+
+      let moveDirX = 0, moveDirZ = 0;
+      let hasInput = false;
+
+      if (autoNav.active) {
+        const dx = autoNav.targetX - player.position.x;
+        const dz = autoNav.targetZ - player.position.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 0.8) {
+          moveDirX = dx / dist; moveDirZ = dz / dist; hasInput = true;
+        } else {
+          autoNav.active = false; targetMarker.visible = false;
+        }
+      }
+
+      if (joyState.active) {
+        autoNav.active = false; targetMarker.visible = false; hasInput = true;
+        const sinC = Math.sin(cameraLook.yaw);
+        const cosC = Math.cos(cameraLook.yaw);
+        moveDirX = joyState.x * cosC + joyState.y * sinC;
+        moveDirZ = -joyState.x * sinC + joyState.y * cosC;
+      }
+
+      if (hasInput && !Locomotion.isRolling) {
+        const targetAngle = Math.atan2(moveDirX, moveDirZ);
+        let diff = targetAngle - player.rotation.y;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        player.rotation.y += diff * Math.min(1.0, 18.0 * dt);
+      }
+
+      const groundY = getTerrainHeight(player.position.x, player.position.z);
+      const isSwimming = groundY < waterLevel - 0.4 && !Survival.isInsideTent;
+      const slope = getTerrainSlope(player.position.x, player.position.z);
+      const isClimbing = slope > 1.25 && !isSwimming && !Survival.isInsideTent && hasInput;
+
+      if (Locomotion.isRolling) {
+        Locomotion.state = 'ROLL';
+        Locomotion.currentSpeed = 16.0;
+        Locomotion.rollTime += dt;
+        player.translateZ(Locomotion.currentSpeed * dt);
+        limbs.chest.rotation.x += dt * 18;
+        if (Locomotion.rollTime > 0.45) {
+          Locomotion.isRolling = false;
+          limbs.chest.rotation.x = 0;
+        }
+      } else if (isSwimming) {
+        Locomotion.state = 'SWIM';
+        Locomotion.currentSpeed = hasInput ? (joyState.magnitude > 0.6 ? 7.5 : 4.0) : 0;
+      } else if (isClimbing) {
+        Locomotion.state = 'CLIMB';
+        Locomotion.currentSpeed = 3.5;
+      } else if (hasInput) {
+        if (joyState.magnitude > 0.58) {
+          Locomotion.state = 'RUN';
+          Locomotion.currentSpeed = 13.5;
+        } else {
+          Locomotion.state = 'SILENT_WALK';
+          Locomotion.currentSpeed = 5.5;
+        }
+      } else {
+        Locomotion.state = 'IDLE';
+        Locomotion.currentSpeed = 0;
+      }
+
+      if (hasInput && !Locomotion.isRolling) {
+        player.position.x += moveDirX * Locomotion.currentSpeed * dt;
+        player.position.z += moveDirZ * Locomotion.currentSpeed * dt;
+      }
+
+      // বাউন্ডিং চেক (Tier 1 vs Tier 2)
+      const boundLimit = Survival.tentTier === 2 ? 6.2 : 4.4;
+      if (Survival.isInsideTent) {
+        player.position.y = interiorRoomPos.y + 0.4;
+        player.position.x = Math.max(interiorRoomPos.x - boundLimit, Math.min(interiorRoomPos.x + boundLimit, player.position.x));
+        player.position.z = Math.max(interiorRoomPos.z - boundLimit, Math.min(interiorRoomPos.z + boundLimit, player.position.z));
+      } else if (isSwimming) {
+        const floatY = waterLevel - 0.75 + Math.sin(performance.now() * 0.004) * 0.08;
+        player.position.y = THREE.MathUtils.lerp(player.position.y, floatY, 0.2);
+      } else {
+        player.position.y = THREE.MathUtils.lerp(player.position.y, groundY, 0.28);
+      }
+
+      // অঙ্গভঙ্গি
+      if (Locomotion.state === 'SWIM') {
+        Locomotion.cycleTime += dt * 6;
+        const stroke = Math.sin(Locomotion.cycleTime);
+        limbs.chest.rotation.x = Math.PI / 3.0;
+        limbs.leftArm.rotation.x = Math.PI / 2 + stroke * 0.9;
+        limbs.rightArm.rotation.x = Math.PI / 2 - stroke * 0.9;
+        limbs.leftLeg.rotation.x = stroke * 0.45;
+        limbs.rightLeg.rotation.x = -stroke * 0.45;
+      } else if (Locomotion.state === 'CLIMB') {
+        Locomotion.cycleTime += dt * 8;
+        const climbCycle = Math.sin(Locomotion.cycleTime);
+        limbs.chest.rotation.x = 0.45;
+        limbs.leftArm.rotation.x = -Math.PI / 1.6 + climbCycle * 0.6;
+        limbs.rightArm.rotation.x = -Math.PI / 1.6 - climbCycle * 0.6;
+        limbs.leftLeg.rotation.x = climbCycle * 0.5;
+        limbs.rightLeg.rotation.x = -climbCycle * 0.5;
+      } else if (Locomotion.state === 'RUN' || Locomotion.state === 'SILENT_WALK') {
+        const animSpeed = Locomotion.state === 'RUN' ? 14 : 7;
+        Locomotion.cycleTime += dt * animSpeed;
+        const swing = Math.sin(Locomotion.cycleTime) * (Locomotion.state === 'RUN' ? 0.75 : 0.4);
+        limbs.chest.rotation.x = Locomotion.state === 'RUN' ? 0.18 : 0.05;
+        limbs.leftLeg.rotation.x = swing; limbs.rightLeg.rotation.x = -swing;
+        limbs.leftArm.rotation.x = -swing; limbs.rightArm.rotation.x = swing;
+      } else if (!Locomotion.isRolling) {
+        limbs.chest.rotation.x = 0;
+        limbs.leftLeg.rotation.x = 0; limbs.rightLeg.rotation.x = 0;
+        limbs.leftArm.rotation.x = 0; limbs.rightArm.rotation.x = 0;
+      }
+
+      // ক্যামেরা
+      const hDist = Survival.isInsideTent ? 6.5 : (cameraLook.distance * Math.cos(cameraLook.pitch));
+      const vDist = Survival.isInsideTent ? 2.2 : (cameraLook.distance * Math.sin(cameraLook.pitch) + 2.8);
+      camera.position.x = player.position.x - Math.sin(cameraLook.yaw) * hDist;
+      camera.position.z = player.position.z - Math.cos(cameraLook.yaw) * hDist;
+      camera.position.y = player.position.y + vDist;
+      camera.lookAt(player.position.x, player.position.y + 1.5, player.position.z);
+
+      // প্রম্পট চেক
+      if (!Survival.isInsideTent) {
+        const distToCamp = player.position.distanceTo(campfire.position);
+        document.getElementById("campPrompt").style.display = distToCamp < 3.8 ? "block" : "none";
+        if (Survival.isTentOpen) {
+          const distToTent = player.position.distanceTo(outdoorTent.position);
+          document.getElementById("doorPrompt").style.display = distToTent < 3.8 ? "block" : "none";
+          document.getElementById("doorPrompt").innerText = "⛺ ENTER TENT ROOM";
+        } else {
+          document.getElementById("doorPrompt").style.display = "none";
+        }
+      } else {
+        const distToExit = Math.hypot(player.position.x - interiorRoomPos.x, player.position.z - (interiorRoomPos.z + boundLimit));
+        document.getElementById("doorPrompt").style.display = distToExit < 2.5 ? "block" : "none";
+        document.getElementById("doorPrompt").innerText = "🚪 EXIT TO WILDERNESS";
+        document.getElementById("campPrompt").style.display = "none";
+      }
+
+      // টার্গেট ওর
+      currentNearestOre = null;
+      let minDist = 5.0;
+      for (let ore of oreNodes) {
+        if (ore.hp > 0) {
+          const d = player.position.distanceTo(ore.mesh.position);
+          if (d < minDist) { minDist = d; currentNearestOre = ore; }
+        }
+      }
+
+      updateHud();
+      renderer.render(scene, camera);
+    }
+
+    loadGameProgress();
+    renderInventoryGrid();
+    gameLoop();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
