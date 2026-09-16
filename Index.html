@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Outlive: Perfect Terrain Alignment & Forest Canopy Core</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+
+    #masterOrientationWrapper {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      overflow: hidden; transform-origin: top left;
+    }
+    @media screen and (orientation: portrait) {
+      #masterOrientationWrapper {
+        width: 100vh !important; height: 100vw !important;
+        transform: rotate(90deg) translateY(-100vw) !important;
+      }
+    }
+
+    #gameContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+    /* কমপ্যাক্ট HUD */
+    #hud {
+      position: absolute; top: env(safe-area-inset-top, 6px); left: env(safe-area-inset-left, 8px);
+      z-index: 1000; background: rgba(4, 14, 10, 0.75); border: 1px solid rgba(0, 255, 170, 0.4);
+      border-radius: 6px; padding: 4px 8px; color: #fff; font-size: 8.5px;
+      backdrop-filter: blur(4px); pointer-events: none; max-width: 48vw;
+    }
+    .hud-row { display: flex; gap: 6px; align-items: center; margin-bottom: 2px; flex-wrap: wrap; }
+    .bar-bg { background: #11241a; height: 3px; border-radius: 2px; width: 55px; display: inline-block; vertical-align: middle; }
+    .bar-fill { height: 100%; border-radius: 2px; }
+
+    #saveToast {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      background: rgba(10, 35, 24, 0.95); border: 1px solid #00ffaa;
+      color: #00ffaa; font-weight: 800; font-size: 8.5px; padding: 3px 10px;
+      border-radius: 12px; z-index: 3000; display: none;
+    }
+
+    #topNav {
+      position: absolute; top: env(safe-area-inset-top, 6px); right: env(safe-area-inset-right, 8px);
+      z-index: 2000; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;
+      max-width: 50vw;
+    }
+    .nav-btn {
+      background: rgba(6, 20, 15, 0.85); border: 1px solid rgba(0, 255, 170, 0.6);
+      border-radius: 4px; color: #00ffaa; font-weight: 700; font-size: 8px;
+      padding: 4px 6px; cursor: pointer; backdrop-filter: blur(4px);
+    }
+    .nav-btn:active { transform: scale(0.94); }
+    #btnCornerExit { background: rgba(192, 57, 43, 0.9); border: 1px solid #ff7675; color: #fff; }
+
+    #crosshairOverlay {
+      display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      pointer-events: none; z-index: 2500; transition: transform 0.05s ease-out;
+    }
+    .crosshair-line { position: absolute; background: rgba(0, 255, 170, 0.85); }
+
+    .action-prompt {
+      display: none; position: absolute; left: 50%; transform: translateX(-50%);
+      z-index: 2000; color: #fff; padding: 6px 14px; border-radius: 20px;
+      font-weight: bold; font-size: 9.5px; cursor: pointer; box-shadow: 0 0 15px rgba(0,0,0,0.8);
+    }
+    #campPrompt { bottom: 85px; background: #d35400; border: 1.5px solid #f39c12; }
+    #doorPrompt { bottom: 55px; background: #16a085; border: 1.5px solid #1abc9c; }
+    #openTentPrompt { bottom: 55px; background: #1abc9c; border: 1.5px solid #2ecc71; box-shadow: 0 0 15px rgba(46, 204, 113, 0.6); }
+    #thornFruitPrompt { bottom: 115px; background: #8e44ad; border: 1.5px solid #e056fd; }
+
+    /* জয়স্টিক */
+    #hud_joystick {
+      position: absolute; bottom: calc(env(safe-area-inset-bottom, 12px) + 8px);
+      left: calc(env(safe-area-inset-left, 12px) + 8px);
+      width: 125px; height: 125px;
+      background: radial-gradient(circle, rgba(14,40,28,0.6) 0%, rgba(5,18,12,0.8) 100%);
+      border: 2px solid rgba(0, 255, 170, 0.6); border-radius: 50%; z-index: 1000;
+    }
+    #joyCenterBall {
+      position: absolute; width: 16px; height: 16px; background: rgba(0, 255, 170, 0.5);
+      border-radius: 50%; top: 50%; left: 50%; margin-top: -8px; margin-left: -8px;
+      pointer-events: none;
+    }
+    #joyThumb {
+      position: absolute; width: 48px; height: 48px;
+      background: radial-gradient(circle at 30% 30%, #55efc4, #00b894);
+      border: 2px solid #00ffaa; border-radius: 50%;
+      pointer-events: none; top: 50%; left: 50%; margin-top: -24px; margin-left: -24px;
+      transform: translate(0px, 0px);
+      box-shadow: 0 0 12px #00ffaa;
+    }
+
+    .hud-element {
+      position: absolute; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; color: #fff; font-weight: 800;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5); touch-action: none;
+    }
+    .hud-element:active { filter: brightness(1.2); }
+
+    /* মোডাল উইন্ডোজ */
+    .game-modal {
+      display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 420px; max-width: 90vw; background: rgba(4, 14, 10, 0.96); border: 1px solid #00ffaa;
+      border-radius: 10px; padding: 10px; color: #fff; z-index: 10005; box-shadow: 0 0 25px rgba(0, 255, 170, 0.25);
+      backdrop-filter: blur(8px); max-height: 85vh; overflow-y: auto;
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #133324; padding-bottom: 4px; margin-bottom: 6px; }
+    .close-btn { background: none; border: none; color: #ff4757; font-size: 16px; font-weight: bold; cursor: pointer; }
+
+    .sub-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+    .sub-tab-btn {
+      flex: 1; padding: 4px 0; background: rgba(255,255,255,0.05); border: 1px solid #1a422e;
+      color: #7ab896; font-size: 8px; font-weight: bold; border-radius: 4px; cursor: pointer;
+    }
+    .sub-tab-btn.active { background: #00ffaa; color: #000; border-color: #00ffaa; }
+
+    .gear-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+    .gear-slot-box {
+      background: rgba(255, 255, 255, 0.03); border: 1px solid #163825; border-radius: 5px;
+      padding: 4px 6px; display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .tent-slot-card { flex: 1; padding: 8px; border-radius: 6px; text-align: center; cursor: pointer; }
+    .tent-subpanel { background: rgba(255, 255, 255, 0.03); border: 1px solid #163825; border-radius: 6px; padding: 6px; margin-bottom: 4px; }
+    .tent-subpanel-header { display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; font-weight: bold; }
+    .tent-subpanel-content { display: none; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #163825; }
+
+    .station-slot {
+      flex: 1; height: 50px; background: rgba(255,255,255,0.03); border: 1.5px dashed #2ecc71;
+      border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 8px; text-align: center; padding: 2px;
+    }
+    .slot-active { border-style: solid; background: rgba(46, 204, 113, 0.1); }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="masterOrientationWrapper">
+    <div id="gameContainer"></div>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div class="hud-row">
+        <span>HP: <b id="hpVal">100</b>% <span class="bar-bg"><span id="hpBar" class="bar-fill" style="background:#ff4757; width:100%; display:block;"></span></span></span>
+        <span>HUNGER: <b id="hunVal">100</b>% <span class="bar-bg"><span id="hunBar" class="bar-fill" style="background:#f39c12; width:100%; display:block;"></span></span></span>
+        <span>💧 <b id="thiVal">100</b>%</span>
+      </div>
+      <div class="hud-row">
+        <span><b id="activeSlotCategoryTxt" style="color:#ff7675;">PRIMARY</b>:</span>
+        <span><b id="activeWeaponTxt" style="color:#00cec9;">AR RIFLE</b> (<span id="magTxt">30/30</span>)</span>
+        <span>TENT: <b id="tentHudStatusTxt" style="color:#f1c40f;">PACKED</b></span>
+      </div>
+      <div class="hud-row">
+        <span>🍓 <b id="fruitTxt">0</b></span>
+        <span>🧪 <b id="sampleTxt">0</b></span>
+        <span>🌿 <b id="grassTxt">0</b></span>
+        <span>$: <b id="creditsVal" style="color:#f1c40f;">0</b></span>
+      </div>
+    </div>
+
+    <div id="saveToast">💾 PROGRESS AUTO-SAVED</div>
+
+    <div id="crosshairOverlay">
+      <div class="crosshair-line" style="width: 16px; height: 1.5px; top: -1px; left: -20px;"></div>
+      <div class="crosshair-line" style="width: 16px; height: 1.5px; top: -1px; left: 4px;"></div>
+      <div class="crosshair-line" style="width: 1.5px; height: 16px; top: -20px; left: -1px;"></div>
+      <div class="crosshair-line" style="width: 1.5px; height: 16px; top: 4px; left: -1px;"></div>
+      <div style="width: 3px; height: 3px; background: #ff4757; border-radius: 50%; margin: -1.5px 0 0 -1.5px;"></div>
+    </div>
+
+    <!-- টপ নেভিগেশন বার -->
+    <div id="topNav">
+      <button class="nav-btn" id="btnCornerExit">🚪 EXIT</button>
+      <button class="nav-btn" id="btnOpenTentWorkshop" style="display: none; background: #16a085; color: #fff;">⛺ WORKSHOP</button>
+      <button class="nav-btn" id="btnOpenTentHub" style="background: #27ae60; color: #fff;">⛺ TENT</button>
+      <button class="nav-btn" id="btnOpenBag">🎒 BAG</button>
+      <button class="nav-btn" id="btnOpenLoadout">⚔️ WEAPONS</button>
+      <button class="nav-btn" id="btnOpenMarket" style="background: #f39c12; color: #000;">💰 SHOP</button>
+      <button class="nav-btn" id="btnOpenCamp" style="background: #d35400; color: #fff;">🔥 FORGE</button>
+      <button class="nav-btn" id="btnOpenCraft" style="background: #2980b9; color: #fff;">🔨 CRAFT</button>
+      <button class="nav-btn" id="btnEatFruit" style="background: #e84393; color: #fff;">🍓 EAT</button>
+    </div>
+
+    <div id="campPrompt" class="action-prompt">🔥 OPEN COOKING FORGE</div>
+    <div id="doorPrompt" class="action-prompt">🚪 EXIT TO WILDERNESS</div>
+    <div id="openTentPrompt" class="action-prompt">⛺ OPEN & ENTER TENT</div>
+    <div id="thornFruitPrompt" class="action-prompt">🍓 PICK WILD FRUITS</div>
+
+    <!-- জয়স্টিক -->
+    <div id="hud_joystick">
+      <div id="joyCenterBall"></div>
+      <div id="joyThumb"></div>
+    </div>
+
+    <!-- অ্যাকশন বাটন ক্লাস্টার -->
+    <div id="hud_attack" class="hud-element" style="bottom: calc(env(safe-area-inset-bottom, 12px) + 8px); right: calc(env(safe-area-inset-right, 12px) + 8px); width: 52px; height: 52px; background: #c0392b; border: 1.5px solid #e74c3c; font-size: 9.5px;">
+      🔥 SHOOT
+    </div>
+    <div id="hud_swipe" class="hud-element" style="bottom: calc(env(safe-area-inset-bottom, 12px) + 68px); right: calc(env(safe-area-inset-right, 12px) + 12px); width: 40px; height: 40px; background: #27ae60; border: 1.5px solid #2ecc71; font-size: 8px; text-align: center;">
+      🔄 SWIP
+    </div>
+    <div id="hud_knife" class="hud-element" style="bottom: calc(env(safe-area-inset-bottom, 12px) + 8px); right: calc(env(safe-area-inset-right, 12px) + 68px); width: 44px; height: 44px; background: #8e44ad; border: 1.5px solid #9b59b6; font-size: 9px;">
+      🔪 KNIFE
+    </div>
+    <div id="hud_aim" class="hud-element" style="bottom: calc(env(safe-area-inset-bottom, 12px) + 116px); right: calc(env(safe-area-inset-right, 12px) + 12px); width: 38px; height: 38px; background: #34495e; border: 1.5px solid #5dade2; font-size: 8.5px;">
+      🎯 AIM
+    </div>
+    <div id="hud_water" class="hud-element" style="bottom: calc(env(safe-area-inset-bottom, 12px) + 60px); right: calc(env(safe-area-inset-right, 12px) + 62px); width: 38px; height: 38px; background: #0984e3; border: 1.5px solid #74b9ff; font-size: 8px;">
+      💧 DRINK
+    </div>
+
+    <!-- মোডালসমূহ -->
+    <div class="game-modal" id="decorModal">
+      <div class="modal-head">
+        <span style="font-weight: 800; color: #00ffaa; font-size: 10px;">TENT WORKSHOP</span>
+        <button class="close-btn" id="btnCloseDecor">✕</button>
+      </div>
+      <div style="background: rgba(22, 160, 133, 0.15); border: 1px solid #16a085; border-radius: 6px; padding: 5px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-weight: bold; font-size: 9px; color: #1abc9c;" id="upgradeTitleTxt">🏗️ Upgrade Cabin</div>
+          <div style="font-size: 7.5px; color: #aaa;">Cost: 6 Wood, 4 Iron</div>
+        </div>
+        <button id="btnUpgradeTent" class="nav-btn" style="background: #e67e22; color: #fff;">UPGRADE</button>
+      </div>
+      <div class="tent-subpanel">
+        <div class="tent-subpanel-header"><span>🛏️ Bed</span><button class="nav-btn" onclick="toggleSubPanel('bedSub')">VIEW</button></div>
+        <div id="bedSub" class="tent-subpanel-content">
+          <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+            <button class="nav-btn" onclick="installItem('bed')" style="flex: 1;">Install</button>
+            <button class="nav-btn" onclick="triggerSleep(false)" style="flex: 1; background: #27ae60; color:#fff;">💤 Sleep</button>
+          </div>
+          <button class="nav-btn" onclick="triggerSleep(true)" style="width: 100%; background: #2c3e50; color:#fff;">🌙 SLEEP TO OFFLINE</button>
+        </div>
+      </div>
+      <div class="tent-subpanel">
+        <div class="tent-subpanel-header"><span>🍳 Stove</span><button class="nav-btn" onclick="toggleSubPanel('cookSub')">VIEW</button></div>
+        <div id="cookSub" class="tent-subpanel-content">
+          <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+            <button class="nav-btn" onclick="installItem('stove')" style="flex: 1;">Install</button>
+            <button class="nav-btn" onclick="mountPotToStove()" style="flex: 1; background: #e67e22; color:#fff;">Mount Pot</button>
+          </div>
+          <button class="nav-btn" onclick="cookFoodIndoor()" style="width: 100%; background: #27ae60; color:#fff;">🍖 Cook Food</button>
+        </div>
+      </div>
+      <div class="tent-subpanel">
+        <div class="tent-subpanel-header"><span>📖 Desk</span><button class="nav-btn" onclick="toggleSubPanel('tableSub')">VIEW</button></div>
+        <div id="tableSub" class="tent-subpanel-content">
+          <div style="display: flex; gap: 4px;">
+            <button class="nav-btn" onclick="installItem('table')" style="flex: 1;">Install</button>
+            <button class="nav-btn" onclick="studyBlueprints()" style="flex: 1; background: #8e44ad; color:#fff;">Analyze</button>
+          </div>
+        </div>
+      </div>
+      <div class="tent-subpanel">
+        <div class="tent-subpanel-header"><span>📦 Chest</span><button class="nav-btn" onclick="toggleSubPanel('boxSub')">VIEW</button></div>
+        <div id="boxSub" class="tent-subpanel-content">
+          <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+            <button class="nav-btn" onclick="installItem('box')" style="flex: 1;">Install</button>
+            <button class="nav-btn" onclick="transferResourcesToChest()" style="flex: 1; background: #2980b9; color:#fff;">Store Items</button>
+          </div>
+          <div id="chestContentTxt" style="font-size: 8px; color: #aaa; text-align: center;">Empty</div>
+        </div>
+      </div>
+      <div class="tent-subpanel">
+        <div class="tent-subpanel-header"><span>💡 Lantern</span>
+          <div style="display: flex; gap: 4px;">
+            <button class="nav-btn" onclick="installItem('light')">Install</button>
+            <button class="nav-btn" id="btnToggleLamp" style="background: #f39c12; color: #000;">ON/OFF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-modal" id="tentHubModal">
+      <div class="modal-head">
+        <span style="font-weight: 800; color: #00ffaa; font-size: 10px;">TENT CONTROLLER</span>
+        <button class="close-btn" id="btnCloseTentHub">✕</button>
+      </div>
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <div id="tentSlot1Remove" class="tent-slot-card" onclick="executeTentAction('REMOVE')" style="background: rgba(231, 76, 60, 0.15); border: 1.5px solid #e74c3c;">
+          <div style="font-size: 7.5px; color: #ff7675;">SLOT 1</div>
+          <div style="font-size: 15px; margin: 2px 0;">🎒</div>
+          <div style="font-size: 9.5px; font-weight: bold;">REMOVE (PACK)</div>
+        </div>
+        <div id="tentSlot2Open" class="tent-slot-card" onclick="executeTentAction('OPEN')" style="background: rgba(46, 204, 113, 0.15); border: 1.5px solid #2ecc71;">
+          <div style="font-size: 7.5px; color: #2ecc71;">SLOT 2</div>
+          <div style="font-size: 15px; margin: 2px 0;">⛺</div>
+          <div style="font-size: 9.5px; font-weight: bold;">OPEN (DEPLOY)</div>
+        </div>
+      </div>
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid #1f4a33; border-radius: 6px; padding: 6px; text-align: center;">
+        <div id="tentDetailedStatusTxt" style="font-size: 9.5px; font-weight: bold; color: #f1c40f;">PACKED IN GEAR BAG</div>
+      </div>
+    </div>
+
+    <div class="game-modal" id="backpackModal">
+      <div class="modal-head">
+        <span style="font-weight: 800; color: #00ffaa; font-size: 10px;">NEURAL BACKPACK</span>
+        <button class="close-btn" id="btnCloseBag">✕</button>
+      </div>
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" id="tabRes" onclick="switchBagTab('resources')">RESOURCES</button>
+        <button class="sub-tab-btn" id="tabGearAttach" onclick="switchBagTab('gear')">WARDROBE</button>
+      </div>
+      <div id="secResources">
+        <div style="font-size: 7.5px; font-weight: bold; color: #7ab896; margin: 2px 0;">NORMAL:</div>
+        <div id="normalResGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px;"></div>
+        <div style="font-size: 7.5px; font-weight: bold; color: #f1c40f; margin: 2px 0;">VALUABLES:</div>
+        <div id="valuableResGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;"></div>
+      </div>
+      <div id="secGearAttach" style="display: none;">
+        <div class="gear-grid" id="gearAttachGrid"></div>
+      </div>
+    </div>
+
+    <div class="game-modal" id="loadoutModal">
+      <div class="modal-head">
+        <span style="font-weight: 800; color: #00ffaa; font-size: 10px;">WEAPON SLOTS</span>
+        <button class="close-btn" id="btnCloseLoadout">✕</button>
+      </div>
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <div id="btnSelectPrimarySlot" onclick="selectSlotCategory('PRIMARY')" style="flex: 1; background: rgba(192, 57, 43, 0.2); border: 1.5px solid #e74c3c; border-radius: 6px; padding: 6px; text-align: center; cursor: pointer;">
+          <div style="font-size: 9px; font-weight: bold; color: #ff7675;">🔴 PRIMARY</div>
+        </div>
+        <div id="btnSelectMiningSlot" onclick="selectSlotCategory('MINING')" style="flex: 1; background: rgba(230, 126, 34, 0.1); border: 1px dashed #f39c12; border-radius: 6px; padding: 6px; text-align: center; cursor: pointer;">
+          <div style="font-size: 9px; font-weight: bold; color: #f39c12;">🟠 MINING</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+        <div id="box_gun1" class="gear-slot-box" style="flex: 1;">
+          <div><div style="font-size: 7px; color: #aaa;">GUN 1</div><div style="font-size: 8px; font-weight: bold;" id="name_gun1">AR Rifle</div></div>
+          <button class="nav-btn" onclick="toggleWeaponEquip('gun1')">REMOVE</button>
+        </div>
+        <div id="box_gun2" class="gear-slot-box" style="flex: 1;">
+          <div><div style="font-size: 7px; color: #aaa;">GUN 2</div><div style="font-size: 8px; font-weight: bold;" id="name_gun2">Shotgun</
